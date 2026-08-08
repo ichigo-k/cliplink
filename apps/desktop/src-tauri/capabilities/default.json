@@ -2,6 +2,15 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "ClipLink desktop permissions",
-  "windows": ["main"],
-  "permissions": ["core:default", "process:allow-restart", "updater:default", "global-shortcut:default"]
+  "windows": ["main", "overlay"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-close",
+    "process:allow-restart",
+    "updater:default",
+    "global-shortcut:default"
+  ]
 }

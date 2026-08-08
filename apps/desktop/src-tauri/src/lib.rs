@@ -22,6 +22,8 @@ use tauri::{
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 const HISTORY_LIMIT: usize = 50;
+const MAIN: &str = "main";
+const OVERLAY: &str = "overlay";
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -161,8 +163,10 @@ fn uuid_v4() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-fn toggle_window(app: &tauri::AppHandle) {
-    let Some(window) = app.get_webview_window("main") else {
+/// The hotkey summons the compact flyout, not the full app. The full window is
+/// for pairing and settings and is reached from the tray menu.
+fn toggle_overlay(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window(OVERLAY) else {
         return;
     };
 
@@ -170,6 +174,14 @@ fn toggle_window(app: &tauri::AppHandle) {
         let _ = window.hide();
     } else {
         let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+fn open_main(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN) {
+        let _ = window.show();
+        let _ = window.unminimize();
         let _ = window.set_focus();
     }
 }
@@ -185,7 +197,7 @@ pub fn run() {
                     // Fires on both press and release; without this guard the
                     // window toggles twice per keypress and appears not to open.
                     if event.state == ShortcutState::Pressed {
-                        toggle_window(app);
+                        toggle_overlay(app);
                     }
                 })
                 .build(),
@@ -290,16 +302,11 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        toggle_window(tray.app_handle());
+                        toggle_overlay(tray.app_handle());
                     }
                 })
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
-                        }
-                    }
+                    "show" => open_main(app),
                     "quit" => app.exit(0),
                     _ => {}
                 });
@@ -315,12 +322,19 @@ pub fn run() {
 
             Ok(())
         })
-        // Closing hides to the tray; ClipLink is only useful while it is running.
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            // Closing hides to the tray; ClipLink is only useful while running.
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            // The flyout dismisses when you click away, the way the Windows
+            // clipboard panel does. Only the overlay: the main window should
+            // stay put when it loses focus.
+            tauri::WindowEvent::Focused(false) if window.label() == OVERLAY => {
+                let _ = window.hide();
+            }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error while running ClipLink");

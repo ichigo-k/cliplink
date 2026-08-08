@@ -9,15 +9,26 @@
       {
         "label": "main",
         "title": "ClipLink",
-        "width": 1080,
-        "height": 720,
-        "minWidth": 900,
-        "minHeight": 650,
+        "width": 980,
+        "height": 680,
+        "minWidth": 860,
+        "minHeight": 600,
         "center": true,
         "resizable": true,
-        "visible": false,
+        "visible": false
+      },
+      {
+        "label": "overlay",
+        "title": "ClipLink",
+        "width": 420,
+        "height": 540,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
         "alwaysOnTop": true,
-        "skipTaskbar": true
+        "skipTaskbar": true,
+        "visible": false,
+        "center": true
       }
     ],
     "security": { "csp": null }

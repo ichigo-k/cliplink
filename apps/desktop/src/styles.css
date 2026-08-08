@@ -1,1 +1,538 @@
-:root{font-family:"Segoe UI Variable","Segoe UI",sans-serif;color:#15231e;background:#f4f7f5}*{box-sizing:border-box}body{margin:0;min-width:900px}.shell{display:grid;grid-template-columns:245px 1fr;min-height:100vh;background:radial-gradient(circle at 80% 0,#def2e7,transparent 35%),#f5f7f5}aside{display:flex;flex-direction:column;padding:28px 18px;background:#10251e;color:white}.brand{display:grid;gap:4px;padding:0 10px 30px}.brand b{display:flex;align-items:center;gap:9px;font-size:21px}.brand b svg{padding:7px;width:37px;height:37px;border-radius:11px;background:#62d199;color:#123328}.brand span{font-size:11px;color:#91aa9f;margin-left:46px}nav{display:grid;gap:7px}button{font:inherit;border:0;cursor:pointer}nav button{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:transparent;color:#9db4aa}nav button svg{width:19px}nav button.active,nav button:hover{color:white;background:#1d3a30}.privacy{display:flex;gap:11px;padding:14px;margin-top:auto;border-radius:12px;background:#17362b}.privacy svg{color:#65d39a}.privacy div{display:grid;gap:3px}.privacy b{font-size:12px}.privacy span{font-size:10px;color:#9db4aa;margin:0}main{padding:36px 44px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px}small{font-weight:800;letter-spacing:.18em;color:#56816f}h1{font-size:30px;margin:6px 0}header label{display:flex;align-items:center;gap:8px;padding:9px 13px;border:1px solid #d9e2dd;border-radius:999px;background:white;font-size:12px}header i{width:8px;height:8px;border-radius:50%;background:#35b97a}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.card{padding:27px;border:1px solid #dfe7e2;border-radius:20px;background:rgba(255,255,255,.94);box-shadow:0 16px 50px #1c362b12}.card em{display:grid;place-items:center;width:29px;height:29px;border-radius:9px;background:#e0f6e9;color:#16784e;font-style:normal;font-weight:800}h2{margin:10px 0 8px}p{color:#65756e;line-height:1.55}.qr{display:grid;place-items:center;width:230px;height:230px;margin:22px auto 18px;border:1px solid #dce6e0;border-radius:18px;background:white}.action,.primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 14px;border-radius:10px;font-weight:700}.action{background:#edf2ef;color:#24473a}.primary{background:#1c7e58;color:white}.action svg{width:16px}.grid .action{width:100%}.route{display:flex;align-items:center;justify-content:center;gap:28px;margin:65px 0}.route div{display:grid;place-items:center;gap:8px;font-size:12px;font-weight:700}.route svg{width:42px;height:42px;padding:9px;border-radius:12px;background:#e8f5ed;color:#247451}.route>span{color:#65c492;letter-spacing:7px}.network{display:flex;gap:12px;align-items:center;padding:14px;border-radius:13px;background:#f1f6f3}.network>div{display:grid}.network span,article span{font-size:11px;color:#718179}.card article{display:flex;align-items:center;gap:14px;padding:18px 0;border-top:1px solid #e4ebe7}.card article>div{display:grid;gap:5px}.empty{text-align:center;padding:90px}.empty>svg{width:55px;height:55px;padding:12px;border-radius:16px;background:#e6f5ed;color:#247451}.setting{display:grid;grid-template-columns:1fr auto;align-items:center}.setting>p{grid-column:1/-1}.card em svg{width:17px;height:17px}.hint{font-size:11px;color:#8a9a92;margin:6px 0 12px;min-height:15px}.error{font-size:12px;color:#b4392f;margin-top:10px}article.clickable{cursor:pointer;border-radius:10px;padding:14px 10px}article.clickable:hover{background:#f1f6f3}article.clickable b{font-weight:600;word-break:break-word}.hotkey{width:100%;font-family:Consolas,monospace;font-size:14px;padding:13px}.hotkey:focus{outline:2px solid #35b97a;background:#e6f5ed}.grid .setting{grid-column:1/-1}
+/*
+ * ClipLink desktop.
+ *
+ * No web fonts: the app is offline-first and must look right with no network,
+ * so this leans on the platform UI face. Segoe UI Variable is genuinely good on
+ * Windows 11 and is what native apps use, which is the point.
+ */
+
+:root {
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --surface-sunken: #f4f4f2;
+  --border: #e4e4e0;
+  --border-strong: #d2d2cc;
+  --text: #1a1a18;
+  --muted: #6e6e69;
+  --accent: #0f7050;
+  --accent-soft: #e8f3ee;
+  --danger: #a8341f;
+  --radius: 8px;
+  --shadow-flyout: 0 16px 44px rgb(0 0 0 / 0.22), 0 2px 6px rgb(0 0 0 / 0.12);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131514;
+    --surface: #1a1d1b;
+    --surface-sunken: #101211;
+    --border: #292d2a;
+    --border-strong: #383d39;
+    --text: #e9eae7;
+    --muted: #94968f;
+    --accent: #4fc490;
+    --accent-soft: #16281f;
+    --danger: #e88b78;
+    --shadow-flyout: 0 16px 48px rgb(0 0 0 / 0.55), 0 2px 6px rgb(0 0 0 / 0.4);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The flyout window is transparent so it can have rounded corners. */
+html[data-window="overlay"],
+html[data-window="overlay"] body {
+  background: transparent;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+
+h1 {
+  font-size: 22px;
+}
+
+h2 {
+  font-size: 14px;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  margin-right: 3px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+  margin-top: 8px;
+}
+
+/* ---------------------------------------------------------------- main app */
+
+.app {
+  display: grid;
+  grid-template-columns: 208px 1fr;
+  height: 100%;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 18px 12px;
+  border-right: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.wordmark img {
+  border-radius: 5px;
+}
+
+.rail-nav {
+  display: grid;
+  gap: 2px;
+}
+
+.rail-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  text-align: left;
+}
+
+.rail-nav button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.rail-nav button.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.rail-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.rail-status i {
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  flex: none;
+}
+
+.rail-status.on i {
+  background: var(--accent);
+}
+
+.rail-status div {
+  display: grid;
+  min-width: 0;
+}
+
+.rail-status strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rail-status span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+main {
+  overflow-y: auto;
+}
+
+.page {
+  max-width: 760px;
+  padding: 34px 36px;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.page-head {
+  display: grid;
+  gap: 6px;
+}
+
+.page-head p {
+  color: var(--muted);
+  max-width: 60ch;
+}
+
+.panel {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.spaced {
+  margin-top: 18px;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.qr-panel {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+}
+
+.qr {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  line-height: 0;
+}
+
+.qr.stale {
+  opacity: 0.2;
+}
+
+.qr-foot {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  width: 100%;
+}
+
+.qr-foot .muted {
+  font-size: 12px;
+  min-height: 18px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.btn:hover {
+  background: var(--surface-sunken);
+}
+
+.rows {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.rows li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.rows li div {
+  display: grid;
+}
+
+.rows strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rows span {
+  font-size: 12px;
+}
+
+/* Clip lists, shared shape between the main window and the flyout. */
+
+.clips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+  overflow: hidden;
+}
+
+.clips button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--surface);
+  text-align: left;
+}
+
+.clips button:hover {
+  background: var(--accent-soft);
+}
+
+.clip-text {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.clip-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.clip-meta i {
+  font-style: normal;
+  opacity: 0.5;
+}
+
+.copied {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  font-style: normal;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 48px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.setting {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.setting > div {
+  display: grid;
+  gap: 3px;
+}
+
+.setting .note,
+.setting .error {
+  grid-column: 1 / -1;
+  font-size: 12px;
+}
+
+.hotkey {
+  display: inline-flex;
+  align-items: center;
+  min-width: 132px;
+  justify-content: center;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+}
+
+.hotkey.recording {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------- the flyout */
+
+.flyout {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-flyout);
+  overflow: hidden;
+}
+
+.flyout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+}
+
+.flyout-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.flyout-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.flyout-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+  color: var(--muted);
+}
+
+.flyout-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.flyout-list {
+  overflow-y: auto;
+  padding: 0 8px;
+  display: grid;
+  gap: 2px;
+  align-content: start;
+}
+
+.flyout-list .clip {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  text-align: left;
+}
+
+.flyout-list .clip[data-active="true"] {
+  background: var(--accent-soft);
+}
+
+.flyout-empty {
+  padding: 40px 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.flyout-foot {
+  display: flex;
+  gap: 14px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.flyout-foot kbd {
+  font-size: 10px;
+  padding: 0 4px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background: var(--border-strong);
+  background-clip: content-box;
+}
