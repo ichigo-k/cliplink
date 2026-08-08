@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ClipLink",
+  "version": "0.1.0",
+  "identifier": "com.cliplink.desktop",
+  "build": { "beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420", "beforeBuildCommand": "npm run build", "frontendDist": "../dist" },
+  "app": { "windows": [{ "label": "main", "title": "ClipLink", "width": 1080, "height": 720, "minWidth": 900, "minHeight": 650, "center": true, "resizable": true }], "security": { "csp": null } },
+  "bundle": { "active": true, "targets": "all", "createUpdaterArtifacts": true },
+  "plugins": { "updater": { "pubkey": "REPLACE_WITH_TAURI_PUBLIC_KEY", "endpoints": ["https://github.com/OWNER/cliplink/releases/latest/download/latest.json"] } }
+}
