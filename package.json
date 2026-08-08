@@ -1,0 +1,6 @@
+{
+  "name": "cliplink",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/desktop", "apps/android", "packages/*"]
+}

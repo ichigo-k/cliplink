@@ -3,14 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
-  "scripts": { "start": "expo start", "android": "expo start --android", "web": "expo start --web" },
+  "scripts": { "start": "expo start", "android": "expo start --android", "web": "expo start --web", "typecheck": "tsc --noEmit" },
   "dependencies": {
-    "@react-native-clipboard/clipboard": "^1.15.0",
+    "@cliplink/crypto": "*",
+    "@cliplink/protocol": "*",
     "expo": "^57.0.0",
     "expo-camera": "^57.0.0",
+    "expo-clipboard": "^57.0.0",
+    "expo-secure-store": "^57.0.0",
     "expo-status-bar": "^57.0.0",
     "expo-updates": "^57.0.0",
     "react": "19.2.0",
-    "react-native": "0.83.10"
+    "react-native": "0.83.10",
+    "react-native-get-random-values": "^1.11.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "~5.7.2"
   }
 }

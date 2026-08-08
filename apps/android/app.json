@@ -7,6 +7,6 @@
     "userInterfaceStyle": "automatic",
     "runtimeVersion": { "policy": "appVersion" },
     "updates": { "checkAutomatically": "ON_LOAD", "fallbackToCacheTimeout": 0 },
-    "android": { "package": "com.cliplink.app", "permissions": ["CAMERA", "FOREGROUND_SERVICE", "POST_NOTIFICATIONS"] }
+    "android": { "package": "com.cliplink.app", "permissions": ["CAMERA", "INTERNET"] }
   }
 }
