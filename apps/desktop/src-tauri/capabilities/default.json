@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "ClipLink desktop permissions",
   "windows": ["main"],
-  "permissions": ["core:default", "process:allow-restart", "updater:default"]
+  "permissions": ["core:default", "process:allow-restart", "updater:default", "global-shortcut:default"]
 }
