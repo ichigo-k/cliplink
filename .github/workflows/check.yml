@@ -25,7 +25,10 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      # `npm ci` rather than `npm install` would be preferable, but the lockfile
+      # is generated on Windows and so omits the Linux/macOS native binaries
+      # rollup resolves at runtime. See npm/cli#4828.
+      - run: npm install --no-audit --no-fund
 
       - name: Build desktop frontend
         run: npm run build --workspace apps/desktop
@@ -48,9 +51,9 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf build-essential curl wget file libxdo-dev \
-            libssl-dev libayatana-appindicator3-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf \
+            build-essential curl wget file libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -61,7 +64,10 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      # `npm ci` rather than `npm install` would be preferable, but the lockfile
+      # is generated on Windows and so omits the Linux/macOS native binaries
+      # rollup resolves at runtime. See npm/cli#4828.
+      - run: npm install --no-audit --no-fund
       - run: npm run build --workspace apps/desktop
 
       - name: Formatting
