@@ -22,13 +22,17 @@
     "vite": "^6.0.5"
   },
   "comments": {
-    "optionalDependencies": "Rollup and esbuild ship their native binaries as per-platform packages. npm prunes the ones that do not match the machine that wrote the lockfile (npm/cli#4828), so a lockfile generated on Windows breaks every Linux and macOS CI runner. Declaring them directly forces a lockfile entry for each. Remove once npm fixes the underlying bug."
+    "optionalDependencies": "Rollup, esbuild and the Tauri CLI ship their native binaries as per-platform packages. npm prunes the ones that do not match the machine that wrote the lockfile (npm/cli#4828), so a lockfile generated on Windows breaks every Linux and macOS CI runner. Declaring them directly forces a lockfile entry for each. Verify coverage after any dependency bump; a gap only shows up as a CI failure on another OS."
   },
   "optionalDependencies": {
     "@esbuild/darwin-arm64": "0.25.12",
     "@esbuild/darwin-x64": "0.25.12",
     "@esbuild/linux-x64": "0.25.12",
     "@esbuild/win32-x64": "0.25.12",
+    "@tauri-apps/cli-darwin-arm64": "2.11.4",
+    "@tauri-apps/cli-darwin-x64": "2.11.4",
+    "@tauri-apps/cli-linux-x64-gnu": "2.11.4",
+    "@tauri-apps/cli-win32-x64-msvc": "2.11.4",
     "@rollup/rollup-darwin-arm64": "^4.0.0",
     "@rollup/rollup-darwin-x64": "^4.0.0",
     "@rollup/rollup-linux-x64-gnu": "^4.0.0",
