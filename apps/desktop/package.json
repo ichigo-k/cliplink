@@ -1,1 +1,37 @@
-{"name":"@cliplink/desktop","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"vite","build":"tsc && vite build","tauri":"tauri"},"dependencies":{"@tauri-apps/api":"^2.0.0","@tauri-apps/plugin-process":"^2.0.0","@tauri-apps/plugin-updater":"^2.0.0","lucide-react":"^0.468.0","qrcode.react":"^4.2.0","react":"^19.0.0","react-dom":"^19.0.0"},"devDependencies":{"@tauri-apps/cli":"^2.0.0","@types/react":"^19.0.0","@types/react-dom":"^19.0.0","@vitejs/plugin-react":"^4.3.4","typescript":"~5.7.2","vite":"^6.0.5"}}
+{
+  "name": "@cliplink/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "tsc && vite build", "tauri": "tauri" },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.0.0",
+    "lucide-react": "^0.468.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5"
+  },
+  "comments": {
+    "optionalDependencies": "Rollup and esbuild ship their native binaries as per-platform packages. npm prunes the ones that do not match the machine that wrote the lockfile (npm/cli#4828), so a lockfile generated on Windows breaks every Linux and macOS CI runner. Declaring them directly forces a lockfile entry for each. Remove once npm fixes the underlying bug."
+  },
+  "optionalDependencies": {
+    "@esbuild/darwin-arm64": "0.25.12",
+    "@esbuild/darwin-x64": "0.25.12",
+    "@esbuild/linux-x64": "0.25.12",
+    "@esbuild/win32-x64": "0.25.12",
+    "@rollup/rollup-darwin-arm64": "^4.0.0",
+    "@rollup/rollup-darwin-x64": "^4.0.0",
+    "@rollup/rollup-linux-x64-gnu": "^4.0.0",
+    "@rollup/rollup-win32-x64-msvc": "^4.0.0"
+  }
+}

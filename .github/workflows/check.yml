@@ -25,10 +25,9 @@ jobs:
           node-version: 20
           cache: npm
 
-      # `npm ci` rather than `npm install` would be preferable, but the lockfile
-      # is generated on Windows and so omits the Linux/macOS native binaries
-      # rollup resolves at runtime. See npm/cli#4828.
-      - run: npm install --no-audit --no-fund
+      # Works on non-Windows runners only because apps/desktop declares every
+      # platform's rollup and esbuild binary. See the note in its package.json.
+      - run: npm ci
 
       - name: Build desktop frontend
         run: npm run build --workspace apps/desktop
@@ -64,10 +63,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # `npm ci` rather than `npm install` would be preferable, but the lockfile
-      # is generated on Windows and so omits the Linux/macOS native binaries
-      # rollup resolves at runtime. See npm/cli#4828.
-      - run: npm install --no-audit --no-fund
+      # Works on non-Windows runners only because apps/desktop declares every
+      # platform's rollup and esbuild binary. See the note in its package.json.
+      - run: npm ci
       - run: npm run build --workspace apps/desktop
 
       - name: Formatting

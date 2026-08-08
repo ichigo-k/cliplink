@@ -61,9 +61,7 @@ jobs:
             build-essential curl wget file libxdo-dev libssl-dev \
             libayatana-appindicator3-dev
 
-      # See the note in check.yml: the Windows-generated lockfile makes `npm ci`
-      # unusable on other platforms.
-      - run: npm install --no-audit --no-fund
+      - run: npm ci
 
       # Signs each artifact and writes latest.json, which is the file the
       # updater in every installed copy polls. Without the signing secrets the
@@ -106,9 +104,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # See the note in check.yml: the Windows-generated lockfile makes `npm ci`
-      # unusable on other platforms.
-      - run: npm install --no-audit --no-fund
+      - run: npm ci
 
       - name: Generate the native Android project
         working-directory: apps/android
@@ -165,9 +161,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      # See the note in check.yml: the Windows-generated lockfile makes `npm ci`
-      # unusable on other platforms.
-      - run: npm install --no-audit --no-fund
+      - run: npm ci
 
       - uses: expo/expo-github-action@v8
         with:
