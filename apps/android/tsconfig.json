@@ -4,7 +4,6 @@
     "strict": true,
     "jsx": "react-jsx",
     "moduleResolution": "bundler",
-    "baseUrl": ".",
     "paths": {
       "@cliplink/crypto": ["../../packages/crypto/src/index.ts"],
       "@cliplink/protocol": ["../../packages/protocol/src/index.ts"]
