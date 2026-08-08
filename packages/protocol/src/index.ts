@@ -18,12 +18,23 @@ export type PairingOffer = {
   version: number;
   deviceId: string;
   deviceName: string;
+  /** Best guess. Prefer `hosts`, which lists every address worth trying. */
   host: string;
+  hosts?: string[];
   port: number;
   nonce: string;
   publicKey: string;
   expiresAt: number;
 };
+
+/**
+ * Addresses to try, in order. A PC can sit behind several adapters (VPN, WSL,
+ * Docker) and only one of them is on the same network as the phone.
+ */
+export function candidateHosts(offer: PairingOffer): string[] {
+  const all = [...(offer.hosts ?? []), offer.host].filter(Boolean);
+  return [...new Set(all)];
+}
 
 export type Hello = {
   type: 'hello';
@@ -78,7 +89,11 @@ export function parsePairingOffer(raw: string, now = Date.now()): { ok: true; of
 }
 
 export function socketUrl(offer: Pick<PairingOffer, 'host' | 'port'>): string {
-  return `ws://${offer.host}:${offer.port}${SYNC_PATH}`;
+  return socketUrlFor(offer.host, offer.port);
+}
+
+export function socketUrlFor(host: string, port: number): string {
+  return `ws://${host}:${port}${SYNC_PATH}`;
 }
 
 export function isMessage(value: unknown): value is Message {

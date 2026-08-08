@@ -76,6 +76,12 @@ export default function App() {
     invoke<SettingsView>('get_settings').then(setSettings).catch(() => {});
   }, []);
 
+  // A dead QR code helps nobody: mint a fresh one as soon as the old one
+  // lapses, so the pairing tab is always ready to scan.
+  useEffect(() => {
+    if (expired) refreshPairing();
+  }, [expired, refreshPairing]);
+
   useEffect(() => {
     refreshPairing();
     refreshSettings();
@@ -132,8 +138,16 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <nav className="rail">
+    <>
+      {/* Drifting colour behind the glass. Purely decorative. */}
+      <div className="aurora" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+
+      <div className="app">
+        <nav className="rail">
         <div className="wordmark">
           <img src="/icon.png" alt="" width={22} height={22} />
           ClipLink
@@ -169,8 +183,11 @@ export default function App() {
 
             <div className="split">
               <div className="panel qr-panel">
+                {/* Deliberately light-on-dark-inverted: many phone scanners
+                    fail on inverted QR codes, so this card stays light even in
+                    the dark UI. */}
                 <div className={`qr ${expired ? 'stale' : ''}`}>
-                  <QRCodeSVG value={payload} size={188} bgColor="transparent" fgColor="currentColor" />
+                  <QRCodeSVG value={payload} size={188} bgColor="#ffffff" fgColor="#0b0f0d" level="M" />
                 </div>
                 <div className="qr-foot">
                   <span className="muted">
@@ -310,7 +327,8 @@ export default function App() {
             </div>
           </section>
         )}
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 }

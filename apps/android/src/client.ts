@@ -1,5 +1,5 @@
 import { generateIdentity, hashHex, open, seal, sessionKey, type Identity } from '@cliplink/crypto';
-import { HEARTBEAT_INTERVAL_MS, socketUrl, type PairingOffer } from '@cliplink/protocol';
+import { candidateHosts, HEARTBEAT_INTERVAL_MS, socketUrlFor, type PairingOffer } from '@cliplink/protocol';
 
 /** The union of fields any inbound frame may carry; `type` decides which apply. */
 type InboundFrame = {
@@ -13,9 +13,9 @@ type InboundFrame = {
 
 export type Status =
   | { state: 'idle' }
-  | { state: 'connecting' }
+  | { state: 'connecting'; host: string }
   | { state: 'connected'; deviceName: string }
-  | { state: 'error'; message: string };
+  | { state: 'error'; message: string; detail?: string };
 
 export type ClientEvents = {
   onStatus: (status: Status) => void;
@@ -36,6 +36,10 @@ export class SyncClient {
   private reconnect: ReturnType<typeof setTimeout> | null = null;
   private closedByUs = false;
   private deviceId = '';
+  /** The PC may be reachable on several addresses; walk them until one works. */
+  private hosts: string[] = [];
+  private hostIndex = 0;
+  private everConnected = false;
 
   constructor(
     private readonly offer: PairingOffer,
@@ -44,13 +48,18 @@ export class SyncClient {
     private readonly events: ClientEvents,
   ) {
     this.deviceId = `android-${hashHex(identity.publicKeyB64).slice(0, 8)}`;
+    this.hosts = candidateHosts(offer);
+  }
+
+  private get host(): string {
+    return this.hosts[this.hostIndex] ?? this.offer.host;
   }
 
   connect(): void {
     this.closedByUs = false;
-    this.events.onStatus({ state: 'connecting' });
+    this.events.onStatus({ state: 'connecting', host: this.host });
 
-    const socket = new WebSocket(socketUrl(this.offer));
+    const socket = new WebSocket(socketUrlFor(this.host, this.offer.port));
     this.socket = socket;
 
     socket.onopen = () => {
@@ -66,15 +75,28 @@ export class SyncClient {
     socket.onmessage = event => this.handle(String(event.data));
 
     socket.onerror = () => {
+      // Say which addresses were tried: on a network that blocks device-to-
+      // device traffic this is the only clue the user gets, and "check your
+      // Wi-Fi" is actively misleading when they already did.
+      const tried = this.hosts.join(', ') || this.offer.host;
       this.events.onStatus({
         state: 'error',
-        message: `Could not reach ${this.offer.host}. Check that both devices are on the same Wi-Fi.`,
+        message: this.everConnected
+          ? `Lost the connection to ${this.offer.deviceName}. Retrying…`
+          : `No answer from ${tried} on port ${this.offer.port}.`,
+        detail: this.everConnected
+          ? undefined
+          : 'The PC is running and reachable, so this is usually the network refusing to pass traffic between devices — common on school, campus and hotel Wi-Fi. Try a phone hotspot to confirm.',
       });
     };
 
     socket.onclose = () => {
       this.stopHeartbeat();
       this.key = null;
+      // Before a successful handshake, rotate to the next candidate address.
+      if (!this.everConnected && this.hosts.length > 1) {
+        this.hostIndex = (this.hostIndex + 1) % this.hosts.length;
+      }
       if (!this.closedByUs) this.scheduleReconnect();
     };
   }
@@ -89,6 +111,7 @@ export class SyncClient {
 
     if (message.type === 'hello-ack' && message.publicKey) {
       this.key = sessionKey(this.identity, message.publicKey);
+      this.everConnected = true;
       this.events.onStatus({ state: 'connected', deviceName: message.deviceName ?? 'Windows PC' });
       this.startHeartbeat();
       return;

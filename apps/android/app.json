@@ -7,6 +7,10 @@
     "userInterfaceStyle": "automatic",
     "runtimeVersion": { "policy": "appVersion" },
     "updates": { "checkAutomatically": "ON_LOAD", "fallbackToCacheTimeout": 0 },
-    "android": { "package": "com.cliplink.app", "permissions": ["CAMERA", "INTERNET"] }
+    "android": {
+      "package": "com.cliplink.app",
+      "permissions": ["CAMERA", "INTERNET", "ACCESS_NETWORK_STATE"],
+      "usesCleartextTraffic": true
+    }
   }
 }

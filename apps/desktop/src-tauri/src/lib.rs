@@ -10,7 +10,7 @@ use serde::Serialize;
 use server::{now, InboundClip, OutgoingClip, ServerState};
 use settings::Settings;
 use std::{
-    net::UdpSocket,
+    net::{IpAddr, Ipv4Addr, UdpSocket},
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -50,31 +50,94 @@ impl App {
     }
 }
 
-/// Finds the LAN address a phone can actually reach.
+/// Ranks an address by how likely a phone on the same Wi-Fi can reach it.
+/// Lower is better.
+fn rank(adapter: &str, ip: &Ipv4Addr) -> u8 {
+    let name = adapter.to_ascii_lowercase();
+
+    // These adapters are real and routable from this PC, but they lead to a
+    // virtual machine or tunnel, not to the phone on the sofa.
+    let virtualised = [
+        "vethernet",
+        "wsl",
+        "docker",
+        "vmware",
+        "virtualbox",
+        "hyper-v",
+        "tailscale",
+        "zerotier",
+        "radmin",
+        "tap",
+        "tun",
+        "utun",
+        "bridge",
+    ]
+    .iter()
+    .any(|needle| name.contains(needle));
+
+    let base = match ip.octets() {
+        [192, 168, ..] => 0,
+        [10, ..] => 1,
+        [172, second, ..] if (16..=31).contains(&second) => 2,
+        _ => 3,
+    };
+
+    if virtualised {
+        base + 10
+    } else {
+        base
+    }
+}
+
+/// Every address a phone might reach this PC on, most likely first.
 ///
-/// Connecting a UDP socket to a public address sends no packets — it just asks
-/// the routing table which interface would be used, which is more reliable than
-/// picking the first entry from a host lookup.
-fn local_ip() -> String {
-    UdpSocket::bind("0.0.0.0:0")
-        .and_then(|s| {
-            s.connect("8.8.8.8:80")?;
-            s.local_addr()
+/// A single address is not enough. VPNs, WSL, Hyper-V and Docker all add
+/// adapters, and the one that routes to the internet is frequently not the one
+/// sharing a network with the phone — so the QR code carries the whole list and
+/// the phone tries each in turn.
+fn candidate_hosts() -> Vec<String> {
+    let mut found: Vec<(u8, String)> = local_ip_address::list_afinet_netifas()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(adapter, ip)| match ip {
+            IpAddr::V4(v4) if !v4.is_loopback() && !v4.is_link_local() => {
+                Some((rank(&adapter, &v4), v4.to_string()))
+            }
+            _ => None,
         })
-        .map(|addr| addr.ip().to_string())
-        .unwrap_or_else(|_| "127.0.0.1".into())
+        .collect();
+
+    found.sort();
+    found.dedup_by(|a, b| a.1 == b.1);
+
+    let hosts: Vec<String> = found.into_iter().map(|(_, ip)| ip).collect();
+    if hosts.is_empty() {
+        // Last resort: ask the routing table which interface reaches the
+        // internet. Sends no packets — a connected UDP socket just resolves a
+        // route.
+        return UdpSocket::bind("0.0.0.0:0")
+            .and_then(|s| {
+                s.connect("8.8.8.8:80")?;
+                s.local_addr()
+            })
+            .map(|addr| vec![addr.ip().to_string()])
+            .unwrap_or_else(|_| vec!["127.0.0.1".into()]);
+    }
+    hosts
 }
 
 #[tauri::command]
 fn create_pairing(app: State<'_, App>) -> PairingOffer {
     let (nonce, expires_at) = app.server.issue_nonce();
+    let hosts = candidate_hosts();
 
     PairingOffer {
         app: "ClipLink",
         version: PROTOCOL_VERSION,
         device_id: app.server.device_id.clone(),
         device_name: app.server.device_name(),
-        host: local_ip(),
+        host: hosts.first().cloned().unwrap_or_else(|| "127.0.0.1".into()),
+        hosts,
         port: DEFAULT_PORT,
         nonce,
         public_key: app.server.identity.public_key_b64(),

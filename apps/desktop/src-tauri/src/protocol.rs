@@ -15,7 +15,10 @@ pub struct PairingOffer {
     pub version: u32,
     pub device_id: String,
     pub device_name: String,
+    /// Best guess, kept for older phones that only read a single host.
     pub host: String,
+    /// Every address worth trying, most likely first.
+    pub hosts: Vec<String>,
     pub port: u16,
     pub nonce: String,
     pub public_key: String,

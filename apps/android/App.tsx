@@ -3,7 +3,17 @@
 import 'react-native-get-random-values';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar as RNStatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
@@ -16,6 +26,18 @@ import { newIdentity, SyncClient, type Status } from './src/client';
 const IDENTITY_KEY = 'cliplink.identity';
 const OFFER_KEY = 'cliplink.offer';
 
+const C = {
+  void: '#070a09',
+  raise: '#101614',
+  edge: '#1f2724',
+  edgeBright: '#2c3733',
+  text: '#e9efeb',
+  muted: '#8b958f',
+  faint: '#5d665f',
+  mint: '#3ddc97',
+  danger: '#ff9b85',
+};
+
 export default function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [offer, setOffer] = useState<PairingOffer | null>(null);
@@ -23,6 +45,7 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [lastReceived, setLastReceived] = useState('');
   const [notice, setNotice] = useState('');
+  const [sent, setSent] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
   const client = useRef<SyncClient | null>(null);
@@ -79,7 +102,10 @@ export default function App() {
     client.current = sync;
     sync.connect();
 
-    return () => { sync.close(); client.current = null; };
+    return () => {
+      sync.close();
+      client.current = null;
+    };
   }, [offer, identity]);
 
   const onScan = useCallback(async ({ data }: { data: string }) => {
@@ -89,7 +115,6 @@ export default function App() {
     const result = parsePairingOffer(data);
     if (!result.ok) {
       setNotice(result.reason);
-      // Let the user try again with a different code after a beat.
       setTimeout(() => { handledScan.current = false; }, 1500);
       return;
     }
@@ -115,14 +140,20 @@ export default function App() {
   }, [permission, requestPermission]);
 
   /**
-   * Android only lets an app read the clipboard while it has focus, so this is a
-   * button rather than a background watcher. See docs/architecture.md.
+   * Android only lets an app read the clipboard while it has focus, so this is
+   * a button rather than a background watcher. See docs/architecture.md.
    */
   const sendClipboard = useCallback(async () => {
     const text = await Clipboard.getStringAsync();
     if (!text) return setNotice('Your clipboard is empty.');
 
-    setNotice(client.current?.send(text) ? 'Sent to your PC.' : 'Not connected yet.');
+    if (client.current?.send(text)) {
+      setSent(true);
+      setNotice('');
+      setTimeout(() => setSent(false), 1600);
+    } else {
+      setNotice('Not connected to your PC yet.');
+    }
   }, []);
 
   const unpair = useCallback(async () => {
@@ -134,47 +165,74 @@ export default function App() {
 
   if (scanning) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <View style={styles.scanRoot}>
         <StatusBar style="light" />
-        <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={onScan} />
-        <View style={styles.scanOverlay}>
-          <Text style={styles.scanHint}>Point at the QR code on your PC</Text>
+        <CameraView
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          onBarcodeScanned={onScan}
+        />
+        <View style={styles.reticle} pointerEvents="none" />
+        <SafeAreaView style={styles.scanOverlay}>
+          <Text style={styles.scanHint}>Point at the code on your PC</Text>
           {!!notice && <Text style={styles.error}>{notice}</Text>}
-          <Pressable style={styles.secondary} onPress={() => setScanning(false)}>
-            <Text style={styles.secondaryText}>Cancel</Text>
+          <Pressable style={styles.ghost} onPress={() => setScanning(false)}>
+            <Text style={styles.ghostText}>Cancel</Text>
           </Pressable>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </View>
     );
   }
+
+  const dotColor =
+    status.state === 'connected' ? C.mint : status.state === 'error' ? C.danger : C.faint;
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.logo}>ClipLink</Text>
-        <Text style={styles.tagline}>Your clipboard. Your devices. One private bridge.</Text>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.brandRow}>
+          <View style={styles.mark} />
+          <Text style={styles.brand}>ClipLink</Text>
+        </View>
+        <Text style={styles.tagline}>Your clipboard, on both devices.</Text>
 
         <View style={styles.card}>
-          <Text style={styles.heading}>{offer ? statusTitle(status) : 'Pair your PC'}</Text>
-          <Text style={styles.message}>{offer ? statusDetail(status, offer) : 'Open ClipLink on your Windows PC and scan the QR code it shows.'}</Text>
+          <View style={styles.statusRow}>
+            <View style={[styles.dot, { backgroundColor: dotColor }]} />
+            <Text style={styles.statusText}>{offer ? statusTitle(status) : 'Not paired'}</Text>
+            {status.state === 'connecting' && <ActivityIndicator size="small" color={C.mint} />}
+          </View>
 
-          {status.state === 'connecting' && <ActivityIndicator color="#7dd3fc" />}
-          {!!notice && <Text style={styles.error}>{notice}</Text>}
+          <Text style={styles.body}>
+            {offer
+              ? statusDetail(status, offer)
+              : 'Open ClipLink on your Windows PC, go to Devices, and scan the code it shows.'}
+          </Text>
 
-          {!offer && (
-            <Pressable style={styles.primary} onPress={startScanning}>
-              <Text style={styles.primaryText}>Scan QR code</Text>
-            </Pressable>
+          {status.state === 'error' && !!status.detail && (
+            <View style={styles.hintBox}>
+              <Text style={styles.hintText}>{status.detail}</Text>
+            </View>
           )}
 
-          {offer && (
+          {!!notice && <Text style={styles.error}>{notice}</Text>}
+
+          {!offer ? (
+            <Pressable style={styles.primary} onPress={startScanning}>
+              <Text style={styles.primaryText}>Scan pairing code</Text>
+            </Pressable>
+          ) : (
             <>
-              <Pressable style={styles.primary} onPress={sendClipboard}>
-                <Text style={styles.primaryText}>Send my clipboard to PC</Text>
+              <Pressable
+                style={[styles.primary, sent && styles.primaryDone]}
+                onPress={sendClipboard}
+              >
+                <Text style={styles.primaryText}>{sent ? 'Sent to your PC' : 'Send my clipboard'}</Text>
               </Pressable>
-              <Pressable style={styles.secondary} onPress={unpair}>
-                <Text style={styles.secondaryText}>Unpair</Text>
+              <Pressable style={styles.ghost} onPress={unpair}>
+                <Text style={styles.ghostText}>Unpair</Text>
               </Pressable>
             </>
           )}
@@ -182,9 +240,21 @@ export default function App() {
 
         {!!lastReceived && (
           <View style={styles.card}>
-            <Text style={styles.heading}>From your PC</Text>
-            <Text style={styles.message} numberOfLines={6}>{lastReceived}</Text>
-            <Text style={styles.hint}>Already copied to your clipboard.</Text>
+            <Text style={styles.cardTitle}>Latest from your PC</Text>
+            <Text style={styles.mono} numberOfLines={8}>
+              {lastReceived}
+            </Text>
+            <Text style={styles.footnote}>Already on your clipboard — just paste.</Text>
+          </View>
+        )}
+
+        {!!offer && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Why the button?</Text>
+            <Text style={styles.body}>
+              Android blocks apps from reading the clipboard in the background, so copies made here need one
+              tap to send. Anything copied on your PC arrives automatically.
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -194,36 +264,96 @@ export default function App() {
 
 function statusTitle(status: Status): string {
   switch (status.state) {
-    case 'connected': return 'Connected';
-    case 'connecting': return 'Connecting…';
-    case 'error': return 'Disconnected';
-    default: return 'Paired';
+    case 'connected':
+      return 'Connected';
+    case 'connecting':
+      return 'Connecting';
+    case 'error':
+      return 'Cannot reach your PC';
+    default:
+      return 'Paired';
   }
 }
 
 function statusDetail(status: Status, offer: PairingOffer): string {
   switch (status.state) {
-    case 'connected': return `Linked to ${status.deviceName}. Anything you copy on the PC lands here automatically.`;
-    case 'connecting': return `Reaching ${offer.host}…`;
-    case 'error': return status.message;
-    default: return `Paired with ${offer.deviceName}.`;
+    case 'connected':
+      return `Linked to ${status.deviceName}. Anything copied there lands here automatically.`;
+    case 'connecting':
+      return `Trying ${status.host}:${offer.port}…`;
+    case 'error':
+      return status.message;
+    default:
+      return `Paired with ${offer.deviceName}.`;
   }
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#101827' },
-  container: { padding: 24, paddingTop: 60, gap: 16 },
-  logo: { color: '#7dd3fc', fontSize: 38, fontWeight: '800' },
-  tagline: { color: '#cbd5e1', marginTop: 8, marginBottom: 12, fontSize: 15 },
-  card: { backgroundColor: '#1e293b', borderRadius: 18, padding: 22, gap: 14 },
-  heading: { color: '#f8fafc', fontSize: 24, fontWeight: '700' },
-  message: { color: '#cbd5e1', lineHeight: 21 },
-  hint: { color: '#64748b', fontSize: 12 },
-  error: { color: '#fca5a5', lineHeight: 20 },
-  primary: { backgroundColor: '#0284c7', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  primaryText: { color: '#f8fafc', fontWeight: '700', fontSize: 15 },
-  secondary: { borderColor: '#475569', borderWidth: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
-  secondaryText: { color: '#cbd5e1', fontWeight: '600' },
-  scanOverlay: { position: 'absolute', left: 0, right: 0, bottom: 48, padding: 24, gap: 14 },
-  scanHint: { color: '#f8fafc', fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  safe: { flex: 1, backgroundColor: C.void, paddingTop: RNStatusBar.currentHeight ?? 0 },
+  scroll: { padding: 20, paddingTop: 36, gap: 14 },
+
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  mark: { width: 26, height: 26, borderRadius: 8, backgroundColor: C.mint },
+  brand: { color: C.text, fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
+  tagline: { color: C.muted, fontSize: 14, marginBottom: 8 },
+
+  card: {
+    backgroundColor: C.raise,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.edge,
+    padding: 18,
+    gap: 12,
+  },
+  cardTitle: { color: C.text, fontSize: 15, fontWeight: '700' },
+
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  statusText: { color: C.text, fontSize: 17, fontWeight: '700', flex: 1 },
+
+  body: { color: C.muted, fontSize: 14, lineHeight: 21 },
+  footnote: { color: C.faint, fontSize: 12 },
+  mono: { color: C.text, fontSize: 13, fontFamily: 'monospace', lineHeight: 19 },
+
+  hintBox: {
+    backgroundColor: '#1a1410',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#3a2a20',
+    padding: 12,
+  },
+  hintText: { color: '#e8b79a', fontSize: 13, lineHeight: 19 },
+  error: { color: C.danger, fontSize: 13, lineHeight: 19 },
+
+  primary: {
+    backgroundColor: C.mint,
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  primaryDone: { backgroundColor: C.edgeBright },
+  primaryText: { color: C.void, fontWeight: '700', fontSize: 15 },
+
+  ghost: {
+    borderColor: C.edgeBright,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  ghostText: { color: C.muted, fontWeight: '600', fontSize: 14 },
+
+  scanRoot: { flex: 1, backgroundColor: '#000' },
+  reticle: {
+    position: 'absolute',
+    top: '26%',
+    left: '12%',
+    width: '76%',
+    aspectRatio: 1,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: C.mint,
+  },
+  scanOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 22, gap: 12 },
+  scanHint: { color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center' },
 });
