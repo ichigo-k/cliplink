@@ -203,7 +203,7 @@ pub fn run() {
             let hotkey = settings.hotkey.clone();
 
             let suppressor = EchoSuppressor::default();
-            let server = Arc::new(ServerState::new(settings, settings_dir, suppressor.clone()));
+            let server = Arc::new(ServerState::new(settings, settings_dir));
 
             // Inbound: phone copied something.
             let handle = app.handle().clone();

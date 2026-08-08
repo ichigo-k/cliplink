@@ -4,7 +4,7 @@
 use crate::crypto::Identity;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Win+K and Win+V are deliberately not options — Windows 11 reserves them for
 /// Cast and clipboard history, and a third-party app cannot take them.
@@ -40,7 +40,7 @@ impl Default for Settings {
 }
 
 impl Settings {
-    pub fn load(dir: &PathBuf) -> Self {
+    pub fn load(dir: &Path) -> Self {
         let parsed = std::fs::read_to_string(Self::path(dir))
             .ok()
             .and_then(|raw| serde_json::from_str::<Settings>(&raw).ok());
@@ -58,7 +58,7 @@ impl Settings {
         }
     }
 
-    pub fn save(&self, dir: &PathBuf) -> std::io::Result<()> {
+    pub fn save(&self, dir: &Path) -> std::io::Result<()> {
         std::fs::create_dir_all(dir)?;
         std::fs::write(Self::path(dir), serde_json::to_string_pretty(self)?)
     }
@@ -77,7 +77,7 @@ impl Settings {
         self.paired_devices.push(device);
     }
 
-    fn path(dir: &PathBuf) -> PathBuf {
+    fn path(dir: &Path) -> PathBuf {
         dir.join("settings.json")
     }
 }

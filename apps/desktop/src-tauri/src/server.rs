@@ -5,7 +5,6 @@
 //! thing standing between a stranger on the same Wi-Fi and your clipboard.
 
 use crate::{
-    clipboard::EchoSuppressor,
     crypto::{hash_hex, Identity},
     protocol::{
         Clip, HelloAck, Inbound, ProtocolError, DEFAULT_PORT, MAX_PAYLOAD_BYTES, PAIRING_TTL_SECS,
@@ -47,11 +46,10 @@ pub struct ServerState {
     pub settings_dir: PathBuf,
     pub pending_nonces: Mutex<HashMap<String, u64>>,
     pub outgoing: broadcast::Sender<OutgoingClip>,
-    pub suppressor: EchoSuppressor,
 }
 
 impl ServerState {
-    pub fn new(settings: Settings, settings_dir: PathBuf, suppressor: EchoSuppressor) -> Self {
+    pub fn new(settings: Settings, settings_dir: PathBuf) -> Self {
         let identity = settings.identity();
         let device_id = format!(
             "win-{}",
@@ -66,7 +64,6 @@ impl ServerState {
             settings_dir,
             pending_nonces: Mutex::new(HashMap::new()),
             outgoing,
-            suppressor,
         }
     }
 
