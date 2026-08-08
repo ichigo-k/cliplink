@@ -277,9 +277,22 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
 
-            TrayIconBuilder::new()
+            let mut tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .tooltip("ClipLink")
+                // Left click toggles, matching the hotkey. Without this the only
+                // way in is the context menu, which is not discoverable.
+                .show_menu_on_left_click(false)
+                .on_tray_icon_event(|tray, event| {
+                    if let tauri::tray::TrayIconEvent::Click {
+                        button: tauri::tray::MouseButton::Left,
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        toggle_window(tray.app_handle());
+                    }
+                })
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
                         if let Some(w) = app.get_webview_window("main") {
@@ -289,8 +302,16 @@ pub fn run() {
                     }
                     "quit" => app.exit(0),
                     _ => {}
-                })
-                .build(app)?;
+                });
+
+            // Without an explicit icon the tray entry renders blank. The window
+            // is hidden at startup and skips the taskbar, so a blank tray icon
+            // leaves no visible way to reach ClipLink at all.
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+
+            tray.build(app)?;
 
             Ok(())
         })
