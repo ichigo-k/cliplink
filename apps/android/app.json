@@ -2,15 +2,34 @@
   "expo": {
     "name": "ClipLink",
     "slug": "cliplink",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "runtimeVersion": { "policy": "appVersion" },
-    "updates": { "checkAutomatically": "ON_LOAD", "fallbackToCacheTimeout": 0 },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "android": {
       "package": "com.cliplink.app",
-      "permissions": ["CAMERA", "INTERNET", "ACCESS_NETWORK_STATE"],
+      "permissions": [
+        "CAMERA",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
       "usesCleartextTraffic": true
-    }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
   }
 }
