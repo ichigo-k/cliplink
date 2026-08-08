@@ -23,5 +23,10 @@
     "security": { "csp": null }
   },
   "bundle": { "active": true, "targets": "all", "createUpdaterArtifacts": true },
-  "plugins": { "updater": { "pubkey": "REPLACE_WITH_TAURI_PUBLIC_KEY", "endpoints": ["https://github.com/OWNER/cliplink/releases/latest/download/latest.json"] } }
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlFMEQwMEFGODIzQjBCQUYKUldTdkN6dUNyd0FObm1icnliOFY2ck00Y3NpY0RmalBMQU5TMmg4VkFPNjRkUENIcnMrZklKZTEK",
+      "endpoints": ["https://github.com/ichigo-k/cliplink/releases/latest/download/latest.json"]
+    }
+  }
 }

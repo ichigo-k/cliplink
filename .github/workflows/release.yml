@@ -1,0 +1,173 @@
+name: Release
+
+# Tag a commit to ship it:  git tag v0.1.1 && git push origin v0.1.1
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  # Nothing ships unless the same checks that guard main pass first.
+  check:
+    uses: ./.github/workflows/check.yml
+
+  desktop:
+    name: ${{ matrix.label }}
+    needs: check
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS (Apple Silicon)
+            platform: macos-latest
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - label: macOS (Intel)
+            platform: macos-latest
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - label: Linux
+            platform: ubuntu-22.04
+            target: ''
+            args: ''
+          - label: Windows
+            platform: windows-latest
+            target: ''
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf build-essential curl wget file libxdo-dev \
+            libssl-dev libayatana-appindicator3-dev
+
+      - run: npm ci
+
+      # Signs each artifact and writes latest.json, which is the file the
+      # updater in every installed copy polls. Without the signing secrets the
+      # build still succeeds but produces updates no client will accept.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: ClipLink __VERSION__
+          releaseBody: See the assets below to download and install this version.
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }}
+
+  android:
+    name: Android APK
+    needs: check
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    # The `secrets` context is not usable in step-level `if`, so fold the check
+    # into a job-level env var, which may reference secrets.
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - run: npm ci
+
+      - name: Generate the native Android project
+        working-directory: apps/android
+        run: npx expo prebuild --platform android --no-install
+
+      # Android refuses to install an update signed with a different key than
+      # the installed copy, so the keystore must be identical on every release
+      # and therefore comes from a secret. Without it the APK is debug-signed
+      # and users have to uninstall before they can update.
+      - name: Restore the release keystore
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: apps/android/android
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+          {
+            echo "CLIPLINK_UPLOAD_STORE_FILE=release.keystore"
+            echo "CLIPLINK_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+            echo "CLIPLINK_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}"
+            echo "CLIPLINK_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}"
+          } >> gradle.properties
+
+      - name: Point release builds at the keystore
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: apps/android
+        run: node scripts/configure-signing.mjs
+
+      - name: Warn about debug signing
+        if: env.HAS_KEYSTORE != 'true'
+        run: |
+          echo "::warning::ANDROID_KEYSTORE_BASE64 is not set. This APK is debug-signed and cannot update an existing install."
+
+      - name: Build APK
+        working-directory: apps/android/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Attach the APK to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: apps/android/android/app/build/outputs/apk/release/*.apk
+
+  # Ships JS-only changes to phones already running ClipLink, without asking
+  # anyone to reinstall an APK. Native changes still need a new APK.
+  android-ota:
+    name: Android OTA update
+    needs: check
+    runs-on: ubuntu-latest
+    if: ${{ vars.EAS_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publish update
+        working-directory: apps/android
+        run: eas update --branch production --message "${{ github.ref_name }}"
