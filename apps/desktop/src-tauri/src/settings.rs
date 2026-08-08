@@ -72,7 +72,8 @@ impl Settings {
     }
 
     pub fn remember(&mut self, device: PairedDevice) {
-        self.paired_devices.retain(|d| d.device_id != device.device_id);
+        self.paired_devices
+            .retain(|d| d.device_id != device.device_id);
         self.paired_devices.push(device);
     }
 
@@ -82,5 +83,7 @@ impl Settings {
 }
 
 fn hostname() -> Option<String> {
-    std::env::var("COMPUTERNAME").ok().filter(|name| !name.is_empty())
+    std::env::var("COMPUTERNAME")
+        .ok()
+        .filter(|name| !name.is_empty())
 }

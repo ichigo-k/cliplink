@@ -28,7 +28,9 @@ impl EchoSuppressor {
 
     /// True if this change was ours. Consumes the entry either way.
     pub fn should_ignore(&self, hash: &str) -> bool {
-        let Ok(mut seen) = self.seen.lock() else { return false };
+        let Ok(mut seen) = self.seen.lock() else {
+            return false;
+        };
         match seen.remove(hash) {
             Some(expiry) => expiry > Instant::now(),
             None => false,
@@ -37,7 +39,11 @@ impl EchoSuppressor {
 }
 
 pub fn read_text() -> Option<String> {
-    arboard::Clipboard::new().ok()?.get_text().ok().filter(|t| !t.is_empty())
+    arboard::Clipboard::new()
+        .ok()?
+        .get_text()
+        .ok()
+        .filter(|t| !t.is_empty())
 }
 
 /// Writes `text` to the clipboard and marks it so our own watcher ignores it.
@@ -85,7 +91,10 @@ mod tests {
         let suppressor = EchoSuppressor::default();
         suppressor.suppress("abc");
 
-        assert!(suppressor.should_ignore("abc"), "the write we just made should be ignored");
+        assert!(
+            suppressor.should_ignore("abc"),
+            "the write we just made should be ignored"
+        );
         assert!(
             !suppressor.should_ignore("abc"),
             "a second copy of the same text is a real user action and must sync"

@@ -6,9 +6,9 @@ mod settings;
 
 use clipboard::EchoSuppressor;
 use protocol::{PairingOffer, DEFAULT_PORT, PROTOCOL_VERSION};
+use serde::Serialize;
 use server::{now, InboundClip, OutgoingClip, ServerState};
 use settings::Settings;
-use serde::Serialize;
 use std::{
     net::UdpSocket,
     str::FromStr,
@@ -90,7 +90,11 @@ struct SettingsView {
 
 #[tauri::command]
 fn get_settings(app: State<'_, App>) -> Result<SettingsView, String> {
-    let settings = app.server.settings.lock().map_err(|_| "settings unavailable")?;
+    let settings = app
+        .server
+        .settings
+        .lock()
+        .map_err(|_| "settings unavailable")?;
     Ok(SettingsView {
         hotkey: settings.hotkey.clone(),
         device_name: settings.device_name.clone(),
@@ -100,26 +104,37 @@ fn get_settings(app: State<'_, App>) -> Result<SettingsView, String> {
 
 #[tauri::command]
 fn set_hotkey(app: tauri::AppHandle, state: State<'_, App>, hotkey: String) -> Result<(), String> {
-    let parsed = Shortcut::from_str(&hotkey).map_err(|_| format!("'{hotkey}' is not a valid shortcut."))?;
+    let parsed =
+        Shortcut::from_str(&hotkey).map_err(|_| format!("'{hotkey}' is not a valid shortcut."))?;
 
     let previous = {
-        let settings = state.server.settings.lock().map_err(|_| "settings unavailable")?;
+        let settings = state
+            .server
+            .settings
+            .lock()
+            .map_err(|_| "settings unavailable")?;
         settings.hotkey.clone()
     };
 
     // Take the new binding before dropping the old one, so a rejected shortcut
     // does not leave the user with no way to open the window.
-    app.global_shortcut()
-        .register(parsed)
-        .map_err(|_| format!("Windows would not give ClipLink '{hotkey}'. Another app likely owns it."))?;
+    app.global_shortcut().register(parsed).map_err(|_| {
+        format!("Windows would not give ClipLink '{hotkey}'. Another app likely owns it.")
+    })?;
 
     if let Ok(old) = Shortcut::from_str(&previous) {
         let _ = app.global_shortcut().unregister(old);
     }
 
-    let mut settings = state.server.settings.lock().map_err(|_| "settings unavailable")?;
+    let mut settings = state
+        .server
+        .settings
+        .lock()
+        .map_err(|_| "settings unavailable")?;
     settings.hotkey = hotkey;
-    settings.save(&state.server.settings_dir).map_err(|e| e.to_string())
+    settings
+        .save(&state.server.settings_dir)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -147,7 +162,9 @@ fn uuid_v4() -> String {
 }
 
 fn toggle_window(app: &tauri::AppHandle) {
-    let Some(window) = app.get_webview_window("main") else { return };
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
 
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();

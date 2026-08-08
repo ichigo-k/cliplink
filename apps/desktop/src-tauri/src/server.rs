@@ -7,7 +7,9 @@
 use crate::{
     clipboard::EchoSuppressor,
     crypto::{hash_hex, Identity},
-    protocol::{Clip, HelloAck, Inbound, ProtocolError, DEFAULT_PORT, MAX_PAYLOAD_BYTES, PAIRING_TTL_SECS},
+    protocol::{
+        Clip, HelloAck, Inbound, ProtocolError, DEFAULT_PORT, MAX_PAYLOAD_BYTES, PAIRING_TTL_SECS,
+    },
     settings::{PairedDevice, Settings},
 };
 use futures_util::{SinkExt, StreamExt};
@@ -51,7 +53,10 @@ pub struct ServerState {
 impl ServerState {
     pub fn new(settings: Settings, settings_dir: PathBuf, suppressor: EchoSuppressor) -> Self {
         let identity = settings.identity();
-        let device_id = format!("win-{}", &hash_hex(identity.public_key_b64().as_bytes())[..8]);
+        let device_id = format!(
+            "win-{}",
+            &hash_hex(identity.public_key_b64().as_bytes())[..8]
+        );
         let (outgoing, _) = broadcast::channel(64);
 
         ServerState {
@@ -74,7 +79,11 @@ impl ServerState {
 
     /// Mints a single-use nonce for a QR code and forgets any that have expired.
     pub fn issue_nonce(&self) -> (String, u64) {
-        let nonce: String = rand::thread_rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
+        let nonce: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
         let expires_at = now() + PAIRING_TTL_SECS;
 
         if let Ok(mut pending) = self.pending_nonces.lock() {
@@ -85,7 +94,9 @@ impl ServerState {
     }
 
     fn claim_nonce(&self, nonce: &str) -> bool {
-        let Ok(mut pending) = self.pending_nonces.lock() else { return false };
+        let Ok(mut pending) = self.pending_nonces.lock() else {
+            return false;
+        };
         pending.remove(nonce).is_some_and(|expiry| expiry > now())
     }
 
@@ -112,7 +123,10 @@ where
     let on_clip = Arc::new(on_clip);
 
     std::thread::spawn(move || {
-        let runtime = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
+        let runtime = match tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+        {
             Ok(runtime) => runtime,
             Err(e) => {
                 eprintln!("ClipLink: could not start the async runtime: {e}");
@@ -148,11 +162,17 @@ async fn serve(
     state: Arc<ServerState>,
     on_clip: Arc<impl Fn(InboundClip) + Send + Sync + 'static>,
 ) -> Result<(), String> {
-    let ws = tokio_tungstenite::accept_async(stream).await.map_err(|e| e.to_string())?;
+    let ws = tokio_tungstenite::accept_async(stream)
+        .await
+        .map_err(|e| e.to_string())?;
     let (mut write, mut read) = ws.split();
 
     // Handshake first. Anything other than a valid `hello` closes the socket.
-    let first = read.next().await.ok_or("closed before handshake")?.map_err(|e| e.to_string())?;
+    let first = read
+        .next()
+        .await
+        .ok_or("closed before handshake")?
+        .map_err(|e| e.to_string())?;
     let hello = match serde_json::from_str::<Inbound>(first.to_text().map_err(|e| e.to_string())?) {
         Ok(Inbound::Hello(hello)) => hello,
         _ => return Err("first frame was not a hello".into()),
@@ -160,12 +180,22 @@ async fn serve(
 
     let authorised = state.claim_nonce(&hello.nonce) || state.is_known_device(&hello.public_key);
     if !authorised {
-        let refusal = ProtocolError::new("nonce_expired", "That pairing code expired. Refresh it on your PC.");
-        let _ = write.send(WsMessage::text(serde_json::to_string(&refusal).unwrap_or_default())).await;
+        let refusal = ProtocolError::new(
+            "nonce_expired",
+            "That pairing code expired. Refresh it on your PC.",
+        );
+        let _ = write
+            .send(WsMessage::text(
+                serde_json::to_string(&refusal).unwrap_or_default(),
+            ))
+            .await;
         return Err(format!("rejected pairing attempt from {}", hello.device_id));
     }
 
-    let key = state.identity.session_key(&hello.public_key).map_err(|_| "bad public key")?;
+    let key = state
+        .identity
+        .session_key(&hello.public_key)
+        .map_err(|_| "bad public key")?;
 
     state.remember_device(PairedDevice {
         device_id: hello.device_id.clone(),
@@ -181,7 +211,9 @@ async fn serve(
         public_key: state.identity.public_key_b64(),
     };
     write
-        .send(WsMessage::text(serde_json::to_string(&ack).map_err(|e| e.to_string())?))
+        .send(WsMessage::text(
+            serde_json::to_string(&ack).map_err(|e| e.to_string())?,
+        ))
         .await
         .map_err(|e| e.to_string())?;
 
@@ -247,5 +279,8 @@ async fn serve(
 }
 
 pub fn now() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }

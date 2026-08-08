@@ -77,6 +77,10 @@ pub struct ProtocolError {
 
 impl ProtocolError {
     pub fn new(code: &'static str, message: &'static str) -> Self {
-        ProtocolError { kind: "error", code, message }
+        ProtocolError {
+            kind: "error",
+            code,
+            message,
+        }
     }
 }

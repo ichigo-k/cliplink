@@ -22,11 +22,15 @@ pub struct Identity {
 
 impl Identity {
     pub fn generate() -> Self {
-        Identity { secret: StaticSecret::random_from_rng(rand::thread_rng()) }
+        Identity {
+            secret: StaticSecret::random_from_rng(rand::thread_rng()),
+        }
     }
 
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
-        Identity { secret: StaticSecret::from(bytes) }
+        Identity {
+            secret: StaticSecret::from(bytes),
+        }
     }
 
     pub fn to_bytes(&self) -> [u8; 32] {
@@ -43,13 +47,16 @@ impl Identity {
     /// directly: X25519 shared secrets are not uniformly distributed, and
     /// feeding one straight into a cipher key is a well-known footgun.
     pub fn session_key(&self, peer_public_b64: &str) -> Result<SessionKey, CryptoError> {
-        let raw = B64.decode(peer_public_b64).map_err(|_| CryptoError::BadPublicKey)?;
+        let raw = B64
+            .decode(peer_public_b64)
+            .map_err(|_| CryptoError::BadPublicKey)?;
         let bytes: [u8; 32] = raw.try_into().map_err(|_| CryptoError::BadPublicKey)?;
         let shared = self.secret.diffie_hellman(&PublicKey::from(bytes));
 
         let hkdf = Hkdf::<Sha256>::new(None, shared.as_bytes());
         let mut key = [0u8; 32];
-        hkdf.expand(KDF_INFO, &mut key).map_err(|_| CryptoError::KeyDerivation)?;
+        hkdf.expand(KDF_INFO, &mut key)
+            .map_err(|_| CryptoError::KeyDerivation)?;
         Ok(SessionKey(key))
     }
 }
@@ -122,7 +129,11 @@ mod tests {
         let phone = Identity::generate();
         let stranger = Identity::generate();
 
-        let sealed = pc.session_key(&phone.public_key_b64()).unwrap().seal(b"secret").unwrap();
+        let sealed = pc
+            .session_key(&phone.public_key_b64())
+            .unwrap()
+            .seal(b"secret")
+            .unwrap();
         let wrong = pc.session_key(&stranger.public_key_b64()).unwrap();
 
         assert!(wrong.open(&sealed).is_err());

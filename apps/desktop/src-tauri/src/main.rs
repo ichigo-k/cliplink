@@ -1,1 +1,3 @@
-fn main() { cliplink_lib::run() }
+fn main() {
+    cliplink_lib::run()
+}
