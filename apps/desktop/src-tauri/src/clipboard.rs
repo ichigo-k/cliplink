@@ -55,29 +55,6 @@ pub fn apply_text(text: &str, suppressor: &EchoSuppressor) -> Result<(), String>
         .map_err(|e| format!("Could not write to the clipboard: {e}"))
 }
 
-/// Writes text to the clipboard then simulates Ctrl+V so it pastes immediately
-/// into whatever window had focus before the overlay appeared.
-///
-/// The small sleep gives the OS time to re-focus the previous window after the
-/// overlay is hidden — without it the paste lands in no-man's-land.
-pub fn apply_and_paste(text: &str, suppressor: &EchoSuppressor) -> Result<(), String> {
-    apply_text(text, suppressor)?;
-
-    std::thread::spawn(|| {
-        // 80 ms — enough for the overlay hide animation and window re-focus
-        std::thread::sleep(std::time::Duration::from_millis(80));
-
-        use enigo::{Direction::Click, Enigo, Key, Keyboard, Settings};
-        if let Ok(mut enigo) = Enigo::new(&Settings::default()) {
-            let _ = enigo.key(Key::Control, enigo::Direction::Press);
-            let _ = enigo.key(Key::Unicode('v'), Click);
-            let _ = enigo.key(Key::Control, enigo::Direction::Release);
-        }
-    });
-
-    Ok(())
-}
-
 /// Polls for local copies and hands each new one to `on_copy`.
 ///
 /// A dedicated OS thread rather than a tokio task: `arboard` is blocking, and

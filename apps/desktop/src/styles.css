@@ -1,10 +1,9 @@
 /*
- * ClipLink — Windows 11 Fluent Design (revised)
+ * ClipLink — Fluent-inspired dark UI
  *
- * Inspired by Win11 clipboard (Win+V) and Emoji panel:
  * - Deep near-black backgrounds with translucency
  * - Acrylic/Mica-style frosted glass via backdrop-filter
- * - Windows 11 accent blue (#0078D4) as the primary colour
+ * - Emerald green accent (#22C55E) — Warp-ish, high-signal on dark glass
  * - Subtle white-border layering for depth
  * - Clean card-based layout with smooth hover states
  */
@@ -38,13 +37,13 @@
   --text-2: #9d9d9d;
   --text-3: #616161;
 
-  /* Accent — Win11 blue */
-  --accent: #0078D4;
-  --accent-light: #60CDFF;
-  --accent-soft: rgba(0, 120, 212, 0.20);
-  --accent-soft2: rgba(96, 205, 255, 0.15);
-  --green: #6CCB5F;
-  --green-soft: rgba(108, 203, 95, 0.18);
+  /* Accent — emerald green */
+  --accent: #22C55E;
+  --accent-light: #4ADE80;
+  --accent-soft: rgba(34, 197, 94, 0.20);
+  --accent-soft2: rgba(74, 222, 128, 0.15);
+  --green: #4ADE80;
+  --green-soft: rgba(74, 222, 128, 0.18);
   --red: #FF6B6B;
 
   /* Shape & motion */
@@ -152,8 +151,8 @@ body::after {
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 10% 15%, rgba(0, 120, 212, 0.09) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 50% at 85% 75%, rgba(108, 203, 95, 0.05) 0%, transparent 65%),
+    radial-gradient(ellipse 80% 60% at 10% 15%, rgba(34, 197, 94, 0.09) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 50% at 85% 75%, rgba(74, 222, 128, 0.05) 0%, transparent 65%),
     radial-gradient(ellipse 50% 60% at 50% 5%, rgba(160, 120, 255, 0.04) 0%, transparent 70%);
   pointer-events: none;
 }
@@ -233,11 +232,11 @@ kbd {
 }
 
 .btn-primary:hover {
-  background: #1684d8;
+  background: #16A34A;
 }
 
 .btn-primary:active {
-  background: #006cc0;
+  background: #15803D;
 }
 
 .btn-primary svg {
@@ -356,7 +355,7 @@ kbd {
 
 .rail-status.on i {
   background: var(--green);
-  box-shadow: 0 0 0 3px var(--green-soft), 0 0 10px rgba(108, 203, 95, .25);
+  box-shadow: 0 0 0 3px var(--green-soft), 0 0 10px rgba(74, 222, 128, .25);
 }
 
 .rail-status div {
@@ -737,8 +736,8 @@ main {
 }
 
 .flyout-search:focus-within {
-  border-color: rgba(96, 205, 255, 0.6);
-  box-shadow: 0 0 0 2px rgba(96, 205, 255, 0.12);
+  border-color: rgba(74, 222, 128, 0.6);
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.12);
   color: var(--text-2);
 }
 
@@ -793,19 +792,19 @@ main {
 }
 
 .flyout-list .clip.active {
-  background: rgba(0, 120, 212, 0.18);
-  border-color: rgba(0, 120, 212, 0.35);
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(34, 197, 94, 0.35);
 }
 
 /* Pinned item gets a subtle left accent stripe */
 .flyout-list .clip.pinned {
-  background: rgba(96, 205, 255, 0.05);
-  border-color: rgba(96, 205, 255, 0.12);
+  background: rgba(74, 222, 128, 0.05);
+  border-color: rgba(74, 222, 128, 0.12);
 }
 
 .flyout-list .clip.pinned.active {
-  background: rgba(0, 120, 212, 0.22);
-  border-color: rgba(0, 120, 212, 0.4);
+  background: rgba(34, 197, 94, 0.22);
+  border-color: rgba(34, 197, 94, 0.4);
 }
 
 .clip-pin-stripe {
@@ -916,8 +915,8 @@ main {
 
 .clip-action-btn.pinned {
   color: var(--accent-light);
-  background: rgba(96, 205, 255, 0.1);
-  border-color: rgba(96, 205, 255, 0.2);
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.2);
 }
 
 .clip-action-btn.danger:hover {
@@ -993,7 +992,7 @@ main {
 }
 
 ::selection {
-  background: rgba(0, 120, 212, 0.35);
+  background: rgba(34, 197, 94, 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1082,12 +1081,12 @@ main {
 .device-badge.on {
   color: var(--green);
   background: var(--green-soft);
-  border-color: rgba(108, 203, 95, 0.25);
+  border-color: rgba(74, 222, 128, 0.25);
 }
 
 .device-badge.on i {
   background: var(--green);
-  box-shadow: 0 0 0 2px rgba(108, 203, 95, 0.25);
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.25);
 }
 
 .device-connect-row {
@@ -1284,7 +1283,7 @@ main {
   border-radius: 2px;
   background: linear-gradient(90deg, var(--accent), var(--accent-light));
   transition: width 0.3s var(--ease-out);
-  box-shadow: 0 0 8px rgba(0, 120, 212, 0.5);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
 }
 
 .pairing-progress-label {
@@ -1314,7 +1313,7 @@ main {
   align-items: center;
   justify-content: center;
   color: var(--green);
-  box-shadow: 0 0 0 6px rgba(108, 203, 95, 0.1), 0 0 32px rgba(108, 203, 95, 0.2);
+  box-shadow: 0 0 0 6px rgba(74, 222, 128, 0.1), 0 0 32px rgba(74, 222, 128, 0.2);
   animation: success-pop 0.4s var(--ease) both;
 }
 

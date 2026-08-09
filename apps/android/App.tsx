@@ -47,10 +47,10 @@ const C = {
   text: '#f2f2f2',
   muted: '#888888',
   faint: '#444444',
-  accent: '#0078D4',
-  accentLt: '#60CDFF',
-  green: '#6CCB5F',
-  greenBg: 'rgba(108,203,95,0.10)',
+  accent: '#22C55E',
+  accentLt: '#4ADE80',
+  green: '#4ADE80',
+  greenBg: 'rgba(74,222,128,0.10)',
   danger: '#FF6B6B',
 };
 
@@ -475,7 +475,7 @@ const S = StyleSheet.create({
     left: 16,
     right: 16,
     zIndex: 100,
-    backgroundColor: '#1a2a1a',
+    backgroundColor: '#132018',
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -484,7 +484,7 @@ const S = StyleSheet.create({
     elevation: 8,
   },
   toastError: { backgroundColor: '#2a1a1a', borderColor: C.danger },
-  toastInfo: { backgroundColor: '#0d1e2e', borderColor: C.accentLt },
+  toastInfo: { backgroundColor: '#0f2e18', borderColor: C.accentLt },
   toastText: { color: C.text, fontSize: 13, fontWeight: '600', textAlign: 'center' },
 
   /* Header */
@@ -498,12 +498,12 @@ const S = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 13,
-    backgroundColor: '#0b1c33',
+    backgroundColor: '#0d2618',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(0,120,212,0.2)',
+    borderColor: 'rgba(34,197,94,0.22)',
   },
   logo: { width: 32, height: 32 },
   brand: { color: C.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },
@@ -532,8 +532,8 @@ const S = StyleSheet.create({
     gap: 12,
   },
   heroCardConnected: {
-    borderColor: 'rgba(108,203,95,0.20)',
-    backgroundColor: '#1b221b',
+    borderColor: 'rgba(74,222,128,0.28)',
+    backgroundColor: '#132018',
   },
   heroTop: {
     flexDirection: 'row',
@@ -572,7 +572,7 @@ const S = StyleSheet.create({
     alignItems: 'center',
   },
   actionBtnDone: {
-    backgroundColor: '#1e3a1e',
+    backgroundColor: '#153824',
     borderWidth: 1,
     borderColor: C.green,
   },
@@ -645,12 +645,12 @@ const S = StyleSheet.create({
     lineHeight: 19,
   },
   copyTag: {
-    backgroundColor: 'rgba(0,120,212,0.15)',
+    backgroundColor: 'rgba(34,197,94,0.15)',
     borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: 'rgba(0,120,212,0.25)',
+    borderColor: 'rgba(34,197,94,0.28)',
   },
   copyTagText: { color: C.accentLt, fontSize: 12, fontWeight: '600' },
 
