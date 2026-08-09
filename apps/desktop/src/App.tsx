@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Clipboard, Laptop, RefreshCw, Settings, Smartphone } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  Clipboard,
+  HardDrive,
+  Keyboard,
+  Laptop,
+  RefreshCw,
+  Settings,
+  Smartphone,
+  Wifi,
+  ZapOff,
+} from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { oneLine, timeAgo, type ClipEntry, type Pairing, type SettingsView } from './types';
+import { oneLine, timeAgo, type ClipEntry, type Pairing, type PairedDevice, type SettingsView } from './types';
 
 const placeholder: Pairing = {
   deviceId: '',
@@ -23,33 +35,29 @@ const TABS = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 
-/** Builds a Tauri accelerator from a keypress, or null if it is not usable. */
+type PairingPhase = 'idle' | 'scanning' | 'connecting' | 'done';
+
 function accelerator(e: React.KeyboardEvent): string | null {
   const mods: string[] = [];
   if (e.ctrlKey) mods.push('CommandOrControl');
   if (e.altKey) mods.push('Alt');
   if (e.shiftKey) mods.push('Shift');
   if (e.metaKey) mods.push('Super');
-
   const code = e.code;
   let key = '';
   if (/^Key[A-Z]$/.test(code)) key = code.slice(3);
   else if (/^Digit[0-9]$/.test(code)) key = code.slice(5);
   else if (/^F[0-9]{1,2}$/.test(code)) key = code;
   else if (code === 'Space') key = 'Space';
-  else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Insert', 'Delete'].includes(code))
-    key = code;
-
-  // A bare key would be swallowed system-wide, so require a modifier.
+  else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'Insert', 'Delete'].includes(code)) key = code;
   if (!key || mods.length === 0) return null;
   return [...mods, key].join('+');
 }
 
-/** Renders "CommandOrControl+Shift+V" as "Ctrl Shift V". */
 function prettyKeys(hotkey: string): string[] {
-  return hotkey
-    .split('+')
-    .map(part => (part === 'CommandOrControl' ? 'Ctrl' : part === 'Super' ? 'Win' : part));
+  return hotkey.split('+').map(p =>
+    p === 'CommandOrControl' ? 'Ctrl' : p === 'Super' ? 'Win' : p,
+  );
 }
 
 export default function App() {
@@ -63,41 +71,78 @@ export default function App() {
   const [hotkeyError, setHotkeyError] = useState('');
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
+  // Pairing flow state
+  const [pairingPhase, setPairingPhase] = useState<PairingPhase>('idle');
+  const [justPaired, setJustPaired] = useState<PairedDevice | null>(null);
+  // Fake progress: we animate 0→80% while waiting, then jump to 100% on device_paired
+  const [progress, setProgress] = useState(0);
+
   const payload = useMemo(() => JSON.stringify({ app: 'ClipLink', version: 1, ...pairing }), [pairing]);
   const secondsLeft = pairing.expiresAt ? pairing.expiresAt - now : 0;
   const expired = pairing.expiresAt > 0 && secondsLeft <= 0;
   const connected = (settings?.pairedDevices.length ?? 0) > 0;
 
-  const refreshPairing = useCallback(() => {
-    invoke<Pairing>('create_pairing').then(setPairing).catch(() => {});
-  }, []);
+  const refreshPairing = useCallback(() => { invoke<Pairing>('create_pairing').then(setPairing).catch(() => { }); }, []);
+  const refreshSettings = useCallback(() => { invoke<SettingsView>('get_settings').then(setSettings).catch(() => { }); }, []);
 
-  const refreshSettings = useCallback(() => {
-    invoke<SettingsView>('get_settings').then(setSettings).catch(() => {});
-  }, []);
-
-  // A dead QR code helps nobody: mint a fresh one as soon as the old one
-  // lapses, so the pairing tab is always ready to scan.
-  useEffect(() => {
-    if (expired) refreshPairing();
-  }, [expired, refreshPairing]);
+  useEffect(() => { if (expired) refreshPairing(); }, [expired, refreshPairing]);
 
   useEffect(() => {
     refreshPairing();
     refreshSettings();
-    invoke<ClipEntry[]>('get_history').then(setHistory).catch(() => {});
+    invoke<ClipEntry[]>('get_history').then(setHistory).catch(() => { });
 
-    const stop = listen<ClipEntry>('clip', e => {
+    const stopClip = listen<ClipEntry>('clip', e => {
       setHistory(prev => [e.payload, ...prev.filter(c => c.id !== e.payload.id)].slice(0, 50));
       refreshSettings();
     });
+
+    // ← the fix: listen for the pairing event the backend now emits
+    const stopPaired = listen<PairedDevice>('device_paired', e => {
+      refreshSettings();
+      setJustPaired(e.payload);
+      setProgress(100);
+      setPairingPhase('done');
+      // Auto-dismiss back to normal view after 2.5 s
+      setTimeout(() => {
+        setPairingPhase('idle');
+        setJustPaired(null);
+        setProgress(0);
+      }, 2500);
+    });
+
     const tick = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
 
     return () => {
-      stop.then(fn => fn());
+      stopClip.then(fn => fn());
+      stopPaired.then(fn => fn());
       clearInterval(tick);
     };
   }, [refreshPairing, refreshSettings]);
+
+  // Animate a slow crawl to ~80% while in scanning/connecting phase
+  useEffect(() => {
+    if (pairingPhase !== 'scanning' && pairingPhase !== 'connecting') return;
+    setProgress(0);
+    const interval = setInterval(() => {
+      setProgress(p => {
+        if (p >= 78) { clearInterval(interval); return 78; }
+        return p + 1.5;
+      });
+    }, 80);
+    return () => clearInterval(interval);
+  }, [pairingPhase]);
+
+  function openPairingScreen() {
+    refreshPairing();
+    setProgress(0);
+    setPairingPhase('scanning');
+  }
+
+  function closePairingScreen() {
+    setPairingPhase('idle');
+    setProgress(0);
+  }
 
   async function checkUpdate() {
     setUpdate('Checking…');
@@ -117,209 +162,296 @@ export default function App() {
       await invoke('copy_to_clipboard', { text: entry.text });
       setCopied(entry.id);
       setTimeout(() => setCopied(''), 1400);
-    } catch {
-      /* the backend surfaces its own failure */
-    }
+    } catch { /* backend surfaces its own failure */ }
   }
 
   async function captureHotkey(e: React.KeyboardEvent) {
     e.preventDefault();
     const combo = accelerator(e);
     if (!combo) return;
-
     setRecording(false);
     setHotkeyError('');
     try {
       await invoke('set_hotkey', { hotkey: combo });
-      setSettings(s => (s ? { ...s, hotkey: combo } : s));
+      setSettings(s => s ? { ...s, hotkey: combo } : s);
     } catch (err) {
       setHotkeyError(String(err));
     }
   }
 
+  // ─── Pairing overlay (fullscreen modal over devices tab) ─────────────────
+  const showPairingModal = pairingPhase !== 'idle';
+
   return (
     <>
+      <div className="backdrop" aria-hidden="true" />
       <div className="app">
+
+        {/* ── Sidebar rail ── */}
         <nav className="rail">
-        <div className="wordmark">
-          <img src="/icon.png" alt="" width={22} height={22} />
-          ClipLink
-        </div>
-
-        <div className="rail-nav">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className={`rail-status ${connected ? 'on' : ''}`}>
-          <i />
-          <div>
-            <strong>{connected ? 'Connected' : 'Waiting for a phone'}</strong>
-            <span>
-              {pairing.host}:{pairing.port}
-            </span>
+          <div className="wordmark">
+            <img src="/icon.png" alt="" width={22} height={22} />
+            ClipLink
           </div>
-        </div>
-      </nav>
 
-      <main>
-        {tab === 'devices' && (
-          <section className="page">
-            <header className="page-head">
-              <h1>Devices</h1>
-              <p>Scan this code in the ClipLink app on your phone. Both devices must share a Wi-Fi network.</p>
-            </header>
+          <div className="rail-nav">
+            {TABS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                className={tab === id ? 'active' : ''}
+                onClick={() => { setTab(id); if (id !== 'devices') closePairingScreen(); }}
+                aria-current={tab === id ? 'page' : undefined}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            ))}
+          </div>
 
-            <div className="split">
-              <div className="panel qr-panel">
-                {/* Deliberately light-on-dark-inverted: many phone scanners
-                    fail on inverted QR codes, so this card stays light even in
-                    the dark UI. */}
-                <div className={`qr ${expired ? 'stale' : ''}`}>
-                  <QRCodeSVG value={payload} size={188} bgColor="#ffffff" fgColor="#0b0f0d" level="M" />
+          <div className={`rail-status ${connected ? 'on' : ''}`}>
+            <i aria-hidden="true" />
+            <div>
+              <strong>{connected ? 'Connected' : 'Waiting for phone'}</strong>
+              <span>{pairing.host}:{pairing.port}</span>
+            </div>
+          </div>
+        </nav>
+
+        {/* ── Main content ── */}
+        <main>
+
+          {/* ════ PAIRING MODAL ════ */}
+          {tab === 'devices' && showPairingModal && (
+            <div className="pairing-modal" aria-modal="true">
+
+              {/* Back button — hidden when done */}
+              {pairingPhase !== 'done' && (
+                <button className="pairing-back" onClick={closePairingScreen}>
+                  <ArrowLeft size={16} />
+                  Back
+                </button>
+              )}
+
+              {pairingPhase === 'done' ? (
+                /* ── Success state ── */
+                <div className="pairing-success">
+                  <div className="pairing-success-icon">
+                    <Check size={32} strokeWidth={2.5} />
+                  </div>
+                  <h2 className="pairing-success-title">Device connected!</h2>
+                  <p className="pairing-success-sub">
+                    {justPaired?.deviceName ?? 'Your phone'} is now linked.
+                  </p>
                 </div>
-                <div className="qr-foot">
-                  <span className="muted">
+              ) : (
+                /* ── QR + progress state ── */
+                <div className="pairing-content">
+                  <p className="pairing-label">
+                    {pairingPhase === 'connecting' ? 'Connecting…' : 'Scan with the ClipLink app'}
+                  </p>
+
+                  {/* QR code */}
+                  <div className={`pairing-qr ${expired ? 'stale' : ''}`}>
+                    <QRCodeSVG value={payload} size={220} bgColor="#ffffff" fgColor="#0b0f0d" level="M" />
+                  </div>
+
+                  <div className="pairing-timer">
                     {expired
-                      ? 'This code has expired.'
+                      ? <span className="pairing-expired">Code expired —</span>
                       : secondsLeft > 0
                         ? `Expires in ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`
-                        : ' '}
-                  </span>
-                  <button className="btn" onClick={refreshPairing}>
-                    <RefreshCw size={14} />
-                    New code
-                  </button>
+                        : '\u00a0'}
+                    {expired && (
+                      <button className="pairing-refresh-btn" onClick={refreshPairing}>
+                        <RefreshCw size={12} /> Refresh
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="pairing-progress-wrap" aria-label={`Connection progress ${Math.round(progress)}%`}>
+                    <div className="pairing-progress-track">
+                      <div
+                        className="pairing-progress-fill"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <span className="pairing-progress-label">
+                      {progress < 5 ? 'Waiting for scan…' : progress < 78 ? 'Waiting for phone…' : 'Almost there…'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-
-              <div className="panel">
-                <h2>Paired</h2>
-                {settings?.pairedDevices.length ? (
-                  <ul className="rows">
-                    {settings.pairedDevices.map(d => (
-                      <li key={d.deviceId}>
-                        <Smartphone size={15} />
-                        <div>
-                          <strong>{d.deviceName}</strong>
-                          <span className="muted">Paired {timeAgo(d.pairedAt)} ago</span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="muted">No phones yet.</p>
-                )}
-
-                <h2 className="spaced">How it works</h2>
-                <p className="muted">
-                  Anything you copy here reaches your phone automatically. Android blocks background clipboard
-                  reads, so going the other way needs a tap on <strong>Send my clipboard</strong> in the app.
-                </p>
-              </div>
+              )}
             </div>
-          </section>
-        )}
+          )}
 
-        {tab === 'clipboard' && (
-          <section className="page">
-            <header className="page-head">
-              <h1>Clipboard</h1>
-              <p>
-                Copied on either device, newest first. Press{' '}
-                {settings ? prettyKeys(settings.hotkey).map(k => <kbd key={k}>{k}</kbd>) : 'the shortcut'} anywhere
-                for the quick panel.
-              </p>
-            </header>
-
-            {history.length === 0 ? (
-              <div className="panel empty">
-                <Clipboard size={20} />
-                <p>Copy something on this PC or your phone and it will show up here.</p>
+          {/* ════ DEVICES TAB — empty state (centred, full area) ════ */}
+          {tab === 'devices' && !showPairingModal && !settings?.pairedDevices.length && (
+            <div className="devices-empty">
+              <div className="devices-empty-art">
+                <div className="devices-empty-pc"><Laptop size={28} /></div>
+                <div className="devices-empty-line" />
+                <div className="devices-empty-phone"><Smartphone size={28} /></div>
               </div>
-            ) : (
-              <ul className="clips">
-                {history.map(entry => (
-                  <li key={entry.id}>
-                    <button onClick={() => copyBack(entry)}>
-                      <span className="clip-text">{oneLine(entry.text, 120)}</span>
-                      <span className="clip-meta">
-                        {entry.origin === pairing.deviceId ? <Laptop size={12} /> : <Smartphone size={12} />}
-                        {entry.deviceName}
-                        <i>·</i>
-                        {timeAgo(entry.receivedAt)} ago
-                        {copied === entry.id && (
-                          <em className="copied">
-                            <Check size={12} /> copied
-                          </em>
-                        )}
-                      </span>
-                    </button>
+              <h2 className="devices-empty-title">No devices yet</h2>
+              <p className="devices-empty-sub">
+                Link your Android phone to share clipboard content instantly over Wi-Fi.
+              </p>
+              <button className="btn btn-primary devices-empty-cta" onClick={openPairingScreen}>
+                <Smartphone size={15} />
+                Connect a device
+              </button>
+            </div>
+          )}
+
+          {/* ════ DEVICES TAB — device list ════ */}
+          {tab === 'devices' && !showPairingModal && !!settings?.pairedDevices.length && (
+            <section className="page">
+              <header className="page-head">
+                <h1>Devices</h1>
+              </header>
+              <ul className="device-list">
+                {settings.pairedDevices.map(d => (
+                  <li key={d.deviceId} className="device-card">
+                    <div className="device-icon">
+                      <Smartphone size={20} />
+                    </div>
+                    <div className="device-info">
+                      <strong>{d.deviceName}</strong>
+                      <span>Paired {timeAgo(d.pairedAt)} ago</span>
+                    </div>
+                    <div className="device-badge on">
+                      <i />
+                      Connected
+                    </div>
                   </li>
                 ))}
               </ul>
-            )}
-          </section>
-        )}
-
-        {tab === 'settings' && (
-          <section className="page">
-            <header className="page-head">
-              <h1>Settings</h1>
-            </header>
-
-            <div className="panel setting">
-              <div>
-                <h2>Quick panel shortcut</h2>
-                <p className="muted">Opens the compact clipboard panel over whatever you are doing.</p>
+              <div className="device-connect-row">
+                <button className="btn btn-primary" onClick={openPairingScreen}>
+                  <Smartphone size={14} />
+                  Connect another device
+                </button>
               </div>
-              <button
-                className={`hotkey ${recording ? 'recording' : ''}`}
-                onClick={() => {
-                  setRecording(true);
-                  setHotkeyError('');
-                }}
-                onBlur={() => setRecording(false)}
-                onKeyDown={recording ? captureHotkey : undefined}
-              >
-                {recording ? (
-                  'Press keys…'
-                ) : settings ? (
-                  prettyKeys(settings.hotkey).map(k => <kbd key={k}>{k}</kbd>)
-                ) : (
-                  '—'
-                )}
-              </button>
-              {hotkeyError && <p className="error">{hotkeyError}</p>}
-              <p className="muted note">Win+K and Win+V belong to Windows and cannot be reassigned.</p>
-            </div>
+            </section>
+          )}
 
-            <div className="panel setting">
-              <div>
-                <h2>Updates</h2>
-                <p className="muted">ClipLink installs signed releases from GitHub.</p>
-              </div>
-              <button className="btn" onClick={checkUpdate}>
-                <RefreshCw size={14} />
-                Check now
-              </button>
-              {update && <p className="muted note">{update}</p>}
-            </div>
-
-            <div className="panel setting">
-              <div>
-                <h2>This device</h2>
-                <p className="muted">
-                  {settings?.deviceName ?? '—'} · {pairing.host}:{pairing.port}
+          {/* ════ CLIPBOARD TAB ════ */}
+          {tab === 'clipboard' && (
+            <section className="page">
+              <header className="page-head">
+                <h1>Clipboard history</h1>
+                <p>
+                  Copied on either device, newest first. Press{' '}
+                  {settings
+                    ? prettyKeys(settings.hotkey).map(k => <kbd key={k}>{k}</kbd>)
+                    : 'the shortcut'}{' '}
+                  anywhere for the quick overlay.
                 </p>
+              </header>
+
+              {history.length === 0 ? (
+                <div className="empty">
+                  <Clipboard size={22} />
+                  <p>Copy something on this PC or your phone and it will appear here.</p>
+                </div>
+              ) : (
+                <ul className="clips">
+                  {history.map(entry => (
+                    <li key={entry.id}>
+                      <button onClick={() => copyBack(entry)}>
+                        <span className="clip-text">{oneLine(entry.text, 120)}</span>
+                        <span className="clip-meta">
+                          {entry.origin === pairing.deviceId
+                            ? <Laptop size={11} />
+                            : <Smartphone size={11} />}
+                          {entry.deviceName}
+                          <i>·</i>
+                          {timeAgo(entry.receivedAt)} ago
+                          {copied === entry.id && (
+                            <em className="copied"><Check size={11} /> Copied</em>
+                          )}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {/* ════ SETTINGS TAB ════ */}
+          {tab === 'settings' && (
+            <section className="page">
+              <header className="page-head">
+                <h1>Settings</h1>
+              </header>
+
+              {/* Hotkey */}
+              <div className="panel setting">
+                <div>
+                  <h2 style={{ fontSize: 14, textTransform: 'none', letterSpacing: 0, color: 'var(--text)' }}>
+                    <Keyboard size={14} style={{ marginRight: 7, verticalAlign: 'middle', opacity: 0.7 }} />
+                    Quick panel shortcut
+                  </h2>
+                  <p className="muted" style={{ fontSize: 13 }}>
+                    Opens the compact overlay over whatever you are doing.
+                  </p>
+                </div>
+                <button
+                  className={`hotkey ${recording ? 'recording' : ''}`}
+                  onClick={() => { setRecording(true); setHotkeyError(''); }}
+                  onBlur={() => setRecording(false)}
+                  onKeyDown={recording ? captureHotkey : undefined}
+                  aria-label="Hotkey picker"
+                >
+                  {recording
+                    ? 'Press keys…'
+                    : settings
+                      ? prettyKeys(settings.hotkey).map(k => <kbd key={k}>{k}</kbd>)
+                      : '—'}
+                </button>
+                {hotkeyError && <p className="error">{hotkeyError}</p>}
+                <p className="muted note">Win+K and Win+V are reserved by Windows.</p>
               </div>
-            </div>
-          </section>
-        )}
+
+              {/* Updates */}
+              <div className="panel setting">
+                <div>
+                  <h2 style={{ fontSize: 14, textTransform: 'none', letterSpacing: 0, color: 'var(--text)' }}>
+                    <RefreshCw size={14} style={{ marginRight: 7, verticalAlign: 'middle', opacity: 0.7 }} />
+                    Updates
+                  </h2>
+                  <p className="muted" style={{ fontSize: 13 }}>
+                    ClipLink installs signed releases from GitHub automatically.
+                  </p>
+                </div>
+                <button className="btn" onClick={checkUpdate}>
+                  <RefreshCw size={13} />
+                  Check now
+                </button>
+                {update && <p className="muted note">{update}</p>}
+              </div>
+
+              {/* Device info */}
+              <div className="panel setting">
+                <div>
+                  <h2 style={{ fontSize: 14, textTransform: 'none', letterSpacing: 0, color: 'var(--text)' }}>
+                    <HardDrive size={14} style={{ marginRight: 7, verticalAlign: 'middle', opacity: 0.7 }} />
+                    This device
+                  </h2>
+                  <p className="muted" style={{ fontSize: 13 }}>{settings?.deviceName ?? '—'}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--text-2)' }}>
+                  {connected ? <Wifi size={13} /> : <ZapOff size={13} />}
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+                    {pairing.host}:{pairing.port}
+                  </span>
+                </div>
+              </div>
+            </section>
+          )}
+
         </main>
       </div>
     </>

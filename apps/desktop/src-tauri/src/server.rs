@@ -104,20 +104,23 @@ impl ServerState {
             .unwrap_or(false)
     }
 
-    fn remember_device(&self, device: PairedDevice) {
+    pub fn remember_device(&self, device: PairedDevice) -> PairedDevice {
         if let Ok(mut settings) = self.settings.lock() {
-            settings.remember(device);
+            settings.remember(device.clone());
             let _ = settings.save(&self.settings_dir);
         }
+        device
     }
 }
 
 /// Spawns the accept loop. Returns immediately; the listener runs until exit.
-pub fn start<F>(state: Arc<ServerState>, on_clip: F)
+pub fn start<F, G>(state: Arc<ServerState>, on_clip: F, on_paired: G)
 where
     F: Fn(InboundClip) + Send + Sync + 'static,
+    G: Fn(PairedDevice) + Send + Sync + 'static,
 {
-    let on_clip = Arc::new(on_clip);
+    let on_clip   = Arc::new(on_clip);
+    let on_paired = Arc::new(on_paired);
 
     std::thread::spawn(move || {
         let runtime = match tokio::runtime::Builder::new_multi_thread()
@@ -141,11 +144,12 @@ where
             };
 
             while let Ok((stream, peer)) = listener.accept().await {
-                let state = Arc::clone(&state);
-                let on_clip = Arc::clone(&on_clip);
+                let state     = Arc::clone(&state);
+                let on_clip   = Arc::clone(&on_clip);
+                let on_paired = Arc::clone(&on_paired);
 
                 tokio::spawn(async move {
-                    if let Err(e) = serve(stream, state, on_clip).await {
+                    if let Err(e) = serve(stream, state, on_clip, on_paired).await {
                         eprintln!("ClipLink: session with {peer} ended: {e}");
                     }
                 });
@@ -158,6 +162,7 @@ async fn serve(
     stream: tokio::net::TcpStream,
     state: Arc<ServerState>,
     on_clip: Arc<impl Fn(InboundClip) + Send + Sync + 'static>,
+    on_paired: Arc<impl Fn(PairedDevice) + Send + Sync + 'static>,
 ) -> Result<(), String> {
     let ws = tokio_tungstenite::accept_async(stream)
         .await
@@ -194,12 +199,13 @@ async fn serve(
         .session_key(&hello.public_key)
         .map_err(|_| "bad public key")?;
 
-    state.remember_device(PairedDevice {
+    let paired_device = state.remember_device(PairedDevice {
         device_id: hello.device_id.clone(),
         device_name: hello.device_name.clone(),
         public_key: hello.public_key.clone(),
         paired_at: now(),
     });
+    on_paired(paired_device);
 
     let ack = HelloAck {
         kind: "hello-ack",

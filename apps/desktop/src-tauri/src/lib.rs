@@ -284,6 +284,7 @@ pub fn run() {
             let handle = app.handle().clone();
             let inbound_state = Arc::clone(&server);
             let inbound_suppressor = suppressor.clone();
+            let paired_handle = app.handle().clone();
             server::start(Arc::clone(&server), move |clip: InboundClip| {
                 if let Err(e) = clipboard::apply_text(&clip.text, &inbound_suppressor) {
                     eprintln!("ClipLink: {e}");
@@ -309,6 +310,10 @@ pub fn run() {
                     state.record(entry.clone());
                 }
                 let _ = handle.emit("clip", entry);
+            }, move |device: settings::PairedDevice| {
+                // A phone just paired — notify the frontend immediately so the
+                // devices list refreshes without waiting for the first clip.
+                let _ = paired_handle.emit("device_paired", device);
             });
 
             // Outbound: this PC copied something.

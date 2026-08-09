@@ -1,9 +1,14 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ClipLink",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "identifier": "com.cliplink.desktop",
-  "build": { "beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420", "beforeBuildCommand": "npm run build", "frontendDist": "../dist" },
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
   "app": {
     "windows": [
       {
@@ -30,21 +35,36 @@
         "visible": false,
         "center": true,
         "shadow": true,
-        "windowEffects": { "effects": ["acrylic"], "radius": 14 }
+        "windowEffects": {
+          "effects": [
+            "acrylic"
+          ],
+          "radius": 14
+        }
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   },
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlFMEQwMEFGODIzQjBCQUYKUldTdkN6dUNyd0FObm1icnliOFY2ck00Y3NpY0RmalBMQU5TMmg4VkFPNjRkUENIcnMrZklKZTEK",
-      "endpoints": ["https://github.com/ichigo-k/cliplink/releases/latest/download/latest.json"]
+      "endpoints": [
+        "https://github.com/ichigo-k/cliplink/releases/latest/download/latest.json"
+      ]
     }
   }
 }

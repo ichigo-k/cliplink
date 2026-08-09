@@ -5,11 +5,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Laptop, Search, Smartphone } from 'lucide-react';
 import { oneLine, timeAgo, type ClipEntry } from './types';
 
-/**
- * Resolved lazily. `main.tsx` imports this module for every window, so calling
- * getCurrentWindow() at module scope would run outside Tauri too — where it
- * throws and takes the whole app down with a blank screen.
- */
 let cached: ReturnType<typeof getCurrentWindow> | null | undefined;
 
 function overlayWindow() {
@@ -32,20 +27,19 @@ export default function Overlay() {
   const list = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(() => {
-    invoke<ClipEntry[]>('get_history').then(setHistory).catch(() => {});
+    invoke<ClipEntry[]>('get_history').then(setHistory).catch(() => { });
   }, []);
 
   useEffect(() => {
     refresh();
     invoke<{ deviceId: string }>('create_pairing')
       .then(p => setThisDevice(p.deviceId))
-      .catch(() => {});
+      .catch(() => { });
 
     const stopClip = listen<ClipEntry>('clip', e =>
       setHistory(prev => [e.payload, ...prev.filter(c => c.id !== e.payload.id)].slice(0, 50)),
     );
 
-    // Reopening should feel like a fresh panel, not wherever we left off.
     const stopFocus = overlayWindow()?.onFocusChanged(({ payload: focused }) => {
       if (!focused) return;
       refresh();
@@ -67,7 +61,6 @@ export default function Overlay() {
     return matched.slice(0, 40);
   }, [history, query]);
 
-  // A filter that shortens the list must not leave the cursor past the end.
   useEffect(() => {
     setCursor(c => Math.min(c, Math.max(0, results.length - 1)));
   }, [results.length]);
@@ -81,7 +74,7 @@ export default function Overlay() {
     try {
       await invoke('copy_to_clipboard', { text: entry.text });
     } catch {
-      /* the backend surfaces its own failure */
+      /* backend surfaces its own failure */
     }
     await overlayWindow()?.hide();
   }, []);
@@ -102,65 +95,97 @@ export default function Overlay() {
     }
   }
 
+  // Group by today vs earlier for a Win11-style section divider feel
+  const now = Math.floor(Date.now() / 1000);
+  const todayCutoff = now - 86400;
+  const todayItems = results.filter(c => c.receivedAt >= todayCutoff);
+  const olderItems = results.filter(c => c.receivedAt < todayCutoff);
+
+  function renderClip(entry: ClipEntry, globalIdx: number) {
+    const isActive = globalIdx === cursor;
+    const isLocal = entry.origin === thisDevice;
+    return (
+      <button
+        key={entry.id}
+        data-active={isActive}
+        className="clip"
+        onMouseEnter={() => setCursor(globalIdx)}
+        onClick={() => paste(entry)}
+        tabIndex={-1}
+        title={entry.text}
+      >
+        <div className="clip-inner">
+          <div className="clip-body">
+            <span className="clip-text">{oneLine(entry.text, 80)}</span>
+            <span className="clip-meta">
+              <span className="clip-origin-tag">
+                {isLocal ? <Laptop size={10} /> : <Smartphone size={10} />}
+                {entry.deviceName}
+              </span>
+              <i>·</i>
+              {timeAgo(entry.receivedAt)}
+            </span>
+          </div>
+        </div>
+      </button>
+    );
+  }
+
   return (
-    <div className="flyout" onKeyDown={onKeyDown}>
+    <div className="flyout" onKeyDown={onKeyDown} tabIndex={-1}>
+      {/* ── Header ── */}
       <header className="flyout-head" data-tauri-drag-region>
         <span className="flyout-title">Clipboard</span>
-        <span className="flyout-count">{history.length ? `${history.length} items` : ''}</span>
+        {history.length > 0 && (
+          <span className="flyout-count">{history.length}</span>
+        )}
       </header>
 
+      {/* ── Search ── */}
       <div className="flyout-search">
-        <Search size={14} />
+        <Search size={13} />
         <input
           ref={search}
           value={query}
-          onChange={e => {
-            setQuery(e.target.value);
-            setCursor(0);
-          }}
-          placeholder="Search clipboard"
+          onChange={e => { setQuery(e.target.value); setCursor(0); }}
+          placeholder="Search clipboard history"
           spellCheck={false}
         />
       </div>
 
+      {/* ── List ── */}
       <div className="flyout-list" ref={list}>
         {results.length === 0 ? (
           <p className="flyout-empty">
             {history.length === 0 ? 'Nothing copied yet.' : 'No matches.'}
           </p>
+        ) : query ? (
+          // Flat list when searching
+          results.map((entry, i) => renderClip(entry, i))
         ) : (
-          results.map((entry, i) => (
-            <button
-              key={entry.id}
-              data-active={i === cursor}
-              className="clip"
-              onMouseEnter={() => setCursor(i)}
-              onClick={() => paste(entry)}
-              tabIndex={-1}
-            >
-              <span className="clip-text">{oneLine(entry.text)}</span>
-              <span className="clip-meta">
-                {entry.origin === thisDevice ? <Laptop size={11} /> : <Smartphone size={11} />}
-                {entry.deviceName}
-                <i>·</i>
-                {timeAgo(entry.receivedAt)}
-              </span>
-            </button>
-          ))
+          // Grouped: Today / Earlier
+          <>
+            {todayItems.length > 0 && (
+              <>
+                <p className="flyout-section">Today</p>
+                {todayItems.map((entry, i) => renderClip(entry, i))}
+              </>
+            )}
+            {olderItems.length > 0 && (
+              <>
+                <p className="flyout-section">Earlier</p>
+                {olderItems.map((entry, i) => renderClip(entry, todayItems.length + i))}
+              </>
+            )}
+          </>
         )}
       </div>
 
+      {/* ── Footer shortcuts ── */}
       <footer className="flyout-foot">
-        <span>
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> move
-        </span>
-        <span>
-          <kbd>↵</kbd> copy
-        </span>
-        <span>
-          <kbd>esc</kbd> close
-        </span>
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> paste</span>
+        <span><kbd>esc</kbd> close</span>
       </footer>
     </div>
   );

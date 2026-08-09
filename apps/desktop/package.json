@@ -1,9 +1,13 @@
 {
   "name": "@cliplink/desktop",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "vite", "build": "tsc && vite build", "tauri": "tauri" },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "tauri": "tauri"
+  },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-process": "^2.0.0",
