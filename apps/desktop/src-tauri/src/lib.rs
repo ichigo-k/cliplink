@@ -330,10 +330,48 @@ fn toggle_overlay(app: &tauri::AppHandle) {
     };
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
-    } else {
-        let _ = window.show();
-        let _ = window.set_focus();
+        return;
     }
+
+    // Position near the cursor, keeping the panel fully on-screen.
+    if let Ok(cursor) = window.cursor_position() {
+        if let Ok(monitor) = window.current_monitor() {
+            let monitor = monitor.unwrap_or_else(|| {
+                window
+                    .available_monitors()
+                    .ok()
+                    .and_then(|m| m.into_iter().next())
+                    .unwrap()
+            });
+            let scale = monitor.scale_factor();
+            let msize = monitor.size();
+            let mpos = monitor.position();
+
+            // Panel dimensions in physical pixels
+            let pw = (360.0 * scale) as i32;
+            let ph = (480.0 * scale) as i32;
+
+            // Place below-right of cursor with a small offset
+            let mut x = cursor.x as i32 + 12;
+            let mut y = cursor.y as i32 + 12;
+
+            // Clamp so the panel never goes off the right or bottom edge
+            let right_limit = mpos.x + msize.width as i32 - pw;
+            let bottom_limit = mpos.y + msize.height as i32 - ph;
+            if x > right_limit {
+                x = cursor.x as i32 - pw - 12;
+            } // flip left
+            if y > bottom_limit {
+                y = cursor.y as i32 - ph - 12;
+            } // flip up
+
+            use tauri::PhysicalPosition;
+            let _ = window.set_position(PhysicalPosition::new(x, y));
+        }
+    }
+
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 fn open_main(app: &tauri::AppHandle) {

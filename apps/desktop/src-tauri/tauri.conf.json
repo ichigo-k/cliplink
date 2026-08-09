@@ -25,15 +25,15 @@
       {
         "label": "overlay",
         "title": "ClipLink",
-        "width": 440,
-        "height": 560,
+        "width": 360,
+        "height": 480,
         "resizable": false,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false,
-        "center": true,
+        "center": false,
         "shadow": true,
         "windowEffects": {
           "effects": [
