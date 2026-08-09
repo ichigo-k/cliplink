@@ -131,12 +131,20 @@ jobs:
       # printed BUILD SUCCESSFUL and written the APK to disk. (AAPT2 daemon
       # mode was the other suspect, but `android.enableAapt2DaemonMode` was
       # removed from this AGP version and just fails the build if set.)
+      #
+      # Forcing Kotlin in-process means every module's compilation now shares
+      # the one Gradle JVM instead of spreading across separate Kotlin daemon
+      # JVMs, so Expo's default -Xmx2048m/512m metaspace (see gradle.properties)
+      # isn't enough for a project with this many modules and OOMs partway
+      # through. The later, larger value wins since Gradle reads properties
+      # files as a flat key/value map.
       - name: Disable the Kotlin daemon that outlives the build and hangs the runner
         working-directory: apps/android/android
         run: |
           {
             echo ""
             echo "kotlin.compiler.execution.strategy=in-process"
+            echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1536m"
           } >> gradle.properties
 
       # Android refuses to install an update signed with a different key than
