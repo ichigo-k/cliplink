@@ -123,6 +123,21 @@ jobs:
         working-directory: apps/android
         run: npx expo prebuild --platform android --no-install
 
+      # `--no-daemon` only stops the Gradle daemon. The Kotlin compile daemon
+      # and the AAPT2 daemon are separate long-lived processes that AGP spawns
+      # regardless, and both keep a handle on stdout/stderr. The runner won't
+      # mark a step complete until every process holding that pipe exits, so
+      # without this the job hangs for up to 6 hours after Gradle has already
+      # printed BUILD SUCCESSFUL and written the APK to disk.
+      - name: Disable daemons that outlive the build and hang the runner
+        working-directory: apps/android/android
+        run: |
+          {
+            echo ""
+            echo "kotlin.compiler.execution.strategy=in-process"
+            echo "android.enableAapt2DaemonMode=false"
+          } >> gradle.properties
+
       # Android refuses to install an update signed with a different key than
       # the installed copy, so the keystore must be identical on every release
       # and therefore comes from a secret. Without it the APK is debug-signed
@@ -167,6 +182,7 @@ jobs:
 
       - name: Build APK
         working-directory: apps/android/android
+        timeout-minutes: 20
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Attach the APK to the release
