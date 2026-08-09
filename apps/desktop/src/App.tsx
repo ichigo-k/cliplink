@@ -4,11 +4,15 @@ import {
   Check,
   Clipboard,
   HardDrive,
+  History,
   Keyboard,
   Laptop,
+  Pencil,
+  Power,
   RefreshCw,
   Settings,
   Smartphone,
+  Trash2,
   Wifi,
   ZapOff,
 } from 'lucide-react';
@@ -70,11 +74,12 @@ export default function App() {
   const [recording, setRecording] = useState(false);
   const [hotkeyError, setHotkeyError] = useState('');
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   // Pairing flow state
   const [pairingPhase, setPairingPhase] = useState<PairingPhase>('idle');
   const [justPaired, setJustPaired] = useState<PairedDevice | null>(null);
-  // Fake progress: we animate 0→80% while waiting, then jump to 100% on device_paired
   const [progress, setProgress] = useState(0);
 
   const payload = useMemo(() => JSON.stringify({ app: 'ClipLink', version: 1, ...pairing }), [pairing]);
@@ -97,13 +102,11 @@ export default function App() {
       refreshSettings();
     });
 
-    // ← the fix: listen for the pairing event the backend now emits
     const stopPaired = listen<PairedDevice>('device_paired', e => {
       refreshSettings();
       setJustPaired(e.payload);
       setProgress(100);
       setPairingPhase('done');
-      // Auto-dismiss back to normal view after 2.5 s
       setTimeout(() => {
         setPairingPhase('idle');
         setJustPaired(null);
@@ -111,11 +114,17 @@ export default function App() {
       }, 2500);
     });
 
+    // Refresh when a device is unpaired or renamed from settings
+    const stopUnpaired = listen<string>('device_unpaired', () => refreshSettings());
+    const stopChanged = listen<void>('settings_changed', () => refreshSettings());
+
     const tick = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
 
     return () => {
       stopClip.then(fn => fn());
       stopPaired.then(fn => fn());
+      stopUnpaired.then(fn => fn());
+      stopChanged.then(fn => fn());
       clearInterval(tick);
     };
   }, [refreshPairing, refreshSettings]);
@@ -179,7 +188,48 @@ export default function App() {
     }
   }
 
-  // ─── Pairing overlay (fullscreen modal over devices tab) ─────────────────
+  // ─── New feature commands ────────────────────────────────────────────────
+
+  async function toggleStartup(enabled: boolean) {
+    try {
+      await invoke('set_launch_at_startup', { enabled });
+      setSettings(s => s ? { ...s, launchAtStartup: enabled } : s);
+    } catch { /* silently ignore */ }
+  }
+
+  async function changeHistoryLimit(limit: number) {
+    try {
+      await invoke('set_history_limit', { limit });
+      setSettings(s => s ? { ...s, historyLimit: limit } : s);
+      setHistory(h => h.slice(0, limit));
+    } catch { /* silently ignore */ }
+  }
+
+  async function doClearHistory() {
+    try {
+      await invoke('clear_history');
+      setHistory([]);
+    } catch { /* silently ignore */ }
+  }
+
+  async function doUnpairDevice(deviceId: string) {
+    try {
+      await invoke('unpair_device', { deviceId });
+      refreshSettings();
+    } catch { /* silently ignore */ }
+  }
+
+  async function doRenameDevice(deviceId: string) {
+    const trimmed = renameValue.trim();
+    if (!trimmed) return;
+    try {
+      await invoke('rename_device', { deviceId, name: trimmed });
+      setRenamingId(null);
+      refreshSettings();
+    } catch { /* silently ignore */ }
+  }
+
+  // ─── Pairing overlay ─────────────────────────────────────────────────────
   const showPairingModal = pairingPhase !== 'idle';
 
   return (
@@ -387,11 +437,32 @@ export default function App() {
                 <h1>Settings</h1>
               </header>
 
+              {/* Launch at startup */}
+              <div className="panel setting">
+                <div>
+                  <h2 className="setting-label">
+                    <Power size={14} />
+                    Launch at startup
+                  </h2>
+                  <p className="muted" style={{ fontSize: 13 }}>
+                    Start ClipLink automatically when Windows boots.
+                  </p>
+                </div>
+                <button
+                  className={`toggle ${settings?.launchAtStartup ? 'on' : ''}`}
+                  onClick={() => toggleStartup(!settings?.launchAtStartup)}
+                  aria-pressed={settings?.launchAtStartup}
+                  aria-label="Toggle launch at startup"
+                >
+                  <span className="toggle-thumb" />
+                </button>
+              </div>
+
               {/* Hotkey */}
               <div className="panel setting">
                 <div>
-                  <h2 style={{ fontSize: 14, textTransform: 'none', letterSpacing: 0, color: 'var(--text)' }}>
-                    <Keyboard size={14} style={{ marginRight: 7, verticalAlign: 'middle', opacity: 0.7 }} />
+                  <h2 className="setting-label">
+                    <Keyboard size={14} />
                     Quick panel shortcut
                   </h2>
                   <p className="muted" style={{ fontSize: 13 }}>
@@ -415,11 +486,46 @@ export default function App() {
                 <p className="muted note">Win+K and Win+V are reserved by Windows.</p>
               </div>
 
+              {/* History limit */}
+              <div className="panel setting setting-col">
+                <div className="setting-row-top">
+                  <div>
+                    <h2 className="setting-label">
+                      <History size={14} />
+                      Clipboard history size
+                    </h2>
+                    <p className="muted" style={{ fontSize: 13 }}>
+                      How many items to keep. Current:{' '}
+                      <strong style={{ color: 'var(--text)' }}>{settings?.historyLimit ?? 50}</strong>
+                    </p>
+                  </div>
+                  <button
+                    className="btn"
+                    onClick={doClearHistory}
+                    title="Clear all clipboard history"
+                  >
+                    <Trash2 size={13} />
+                    Clear history
+                  </button>
+                </div>
+                <input
+                  type="range"
+                  className="range-slider"
+                  min={10} max={500} step={10}
+                  value={settings?.historyLimit ?? 50}
+                  onChange={e => changeHistoryLimit(Number(e.target.value))}
+                  aria-label="History limit"
+                />
+                <div className="range-labels">
+                  <span>10</span><span>100</span><span>200</span><span>500</span>
+                </div>
+              </div>
+
               {/* Updates */}
               <div className="panel setting">
                 <div>
-                  <h2 style={{ fontSize: 14, textTransform: 'none', letterSpacing: 0, color: 'var(--text)' }}>
-                    <RefreshCw size={14} style={{ marginRight: 7, verticalAlign: 'middle', opacity: 0.7 }} />
+                  <h2 className="setting-label">
+                    <RefreshCw size={14} />
                     Updates
                   </h2>
                   <p className="muted" style={{ fontSize: 13 }}>
@@ -433,11 +539,11 @@ export default function App() {
                 {update && <p className="muted note">{update}</p>}
               </div>
 
-              {/* Device info */}
+              {/* This device */}
               <div className="panel setting">
                 <div>
-                  <h2 style={{ fontSize: 14, textTransform: 'none', letterSpacing: 0, color: 'var(--text)' }}>
-                    <HardDrive size={14} style={{ marginRight: 7, verticalAlign: 'middle', opacity: 0.7 }} />
+                  <h2 className="setting-label">
+                    <HardDrive size={14} />
                     This device
                   </h2>
                   <p className="muted" style={{ fontSize: 13 }}>{settings?.deviceName ?? '—'}</p>
@@ -449,6 +555,66 @@ export default function App() {
                   </span>
                 </div>
               </div>
+
+              {/* Paired devices — rename / unpair */}
+              {!!settings?.pairedDevices.length && (
+                <div className="panel">
+                  <h2 className="setting-label" style={{ marginBottom: 10 }}>
+                    <Smartphone size={14} />
+                    Paired devices
+                  </h2>
+                  <ul className="rows" style={{ margin: 0 }}>
+                    {settings.pairedDevices.map(d => (
+                      <li key={d.deviceId}>
+                        <Smartphone size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {renamingId === d.deviceId ? (
+                            <input
+                              className="rename-input"
+                              value={renameValue}
+                              autoFocus
+                              onChange={e => setRenameValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') doRenameDevice(d.deviceId);
+                                if (e.key === 'Escape') setRenamingId(null);
+                              }}
+                              onBlur={() => setRenamingId(null)}
+                            />
+                          ) : (
+                            <>
+                              <strong>{d.deviceName}</strong>
+                              <span className="muted" style={{ fontSize: 11, display: 'block' }}>
+                                {d.lastSeen ? `Last seen ${timeAgo(d.lastSeen)} ago` : `Paired ${timeAgo(d.pairedAt)} ago`}
+                                {d.lastHost && <> · {d.lastHost}</>}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          {renamingId !== d.deviceId && (
+                            <button
+                              className="btn"
+                              style={{ padding: '4px 10px' }}
+                              onClick={() => { setRenamingId(d.deviceId); setRenameValue(d.deviceName); }}
+                              title="Rename"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          )}
+                          <button
+                            className="btn"
+                            style={{ padding: '4px 10px', color: 'var(--red)' }}
+                            onClick={() => doUnpairDevice(d.deviceId)}
+                            title="Unpair"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </section>
           )}
 

@@ -21,12 +21,16 @@ export type PairedDevice = {
   deviceName: string;
   publicKey: string;
   pairedAt: number;
+  lastHost?: string;
+  lastSeen?: number;
 };
 
 export type SettingsView = {
   hotkey: string;
   deviceName: string;
   pairedDevices: PairedDevice[];
+  launchAtStartup: boolean;
+  historyLimit: number;
 };
 
 export function timeAgo(seconds: number): string {

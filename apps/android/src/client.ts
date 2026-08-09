@@ -1,7 +1,6 @@
 import { generateIdentity, hashHex, open, seal, sessionKey, type Identity } from '@cliplink/crypto';
 import { candidateHosts, HEARTBEAT_INTERVAL_MS, socketUrlFor, type PairingOffer } from '@cliplink/protocol';
 
-/** The union of fields any inbound frame may carry; `type` decides which apply. */
 type InboundFrame = {
   type?: string;
   publicKey?: string;
@@ -19,15 +18,23 @@ export type Status =
 
 export type ClientEvents = {
   onStatus: (status: Status) => void;
-  /** Text the PC copied. The caller decides whether to write it to the clipboard. */
   onClip: (text: string) => void;
 };
 
-const RECONNECT_DELAY_MS = 3_000;
+// Reconnect delay backs off: 3s → 6s → 12s → capped at 30s
+const BASE_RECONNECT_MS = 3_000;
+const MAX_RECONNECT_MS = 30_000;
 
 /**
- * Talks to the desktop over the LAN. Owns one socket at a time and reconnects
- * on its own, because Android drops sockets aggressively when the screen sleeps.
+ * Talks to the desktop over the LAN.
+ *
+ * Reconnection strategy (no re-pairing needed):
+ * 1. Try `lastHost` first if provided — the address that worked last time.
+ * 2. Then walk all candidate IPs from the pairing offer.
+ * 3. Exponential back-off between attempts, capped at 30 s.
+ *
+ * This means a paired phone reconnects automatically whenever the PC is
+ * reachable, even after sleep/wake or IP changes.
  */
 export class SyncClient {
   private socket: WebSocket | null = null;
@@ -36,19 +43,29 @@ export class SyncClient {
   private reconnect: ReturnType<typeof setTimeout> | null = null;
   private closedByUs = false;
   private deviceId = '';
-  /** The PC may be reachable on several addresses; walk them until one works. */
   private hosts: string[] = [];
   private hostIndex = 0;
   private everConnected = false;
+  private reconnectDelay = BASE_RECONNECT_MS;
 
   constructor(
     private readonly offer: PairingOffer,
     private readonly identity: Identity,
     private readonly deviceName: string,
     private readonly events: ClientEvents,
+    /** Last known working IP — try this first to avoid scanning all IPs. */
+    private readonly lastHost?: string,
   ) {
     this.deviceId = `android-${hashHex(identity.publicKeyB64).slice(0, 8)}`;
-    this.hosts = candidateHosts(offer);
+    // Put lastHost at the front so reconnect is instant when IP hasn't changed
+    const base = candidateHosts(offer);
+    if (lastHost && !base.includes(lastHost)) {
+      this.hosts = [lastHost, ...base];
+    } else if (lastHost) {
+      this.hosts = [lastHost, ...base.filter(h => h !== lastHost)];
+    } else {
+      this.hosts = base;
+    }
   }
 
   private get host(): string {
@@ -75,9 +92,6 @@ export class SyncClient {
     socket.onmessage = event => this.handle(String(event.data));
 
     socket.onerror = () => {
-      // Say which addresses were tried: on a network that blocks device-to-
-      // device traffic this is the only clue the user gets, and "check your
-      // Wi-Fi" is actively misleading when they already did.
       const tried = this.hosts.join(', ') || this.offer.host;
       this.events.onStatus({
         state: 'error',
@@ -86,14 +100,13 @@ export class SyncClient {
           : `No answer from ${tried} on port ${this.offer.port}.`,
         detail: this.everConnected
           ? undefined
-          : 'The PC is running and reachable, so this is usually the network refusing to pass traffic between devices — common on school, campus and hotel Wi-Fi. Try a phone hotspot to confirm.',
+          : 'Usually the network blocks device-to-device traffic (school / hotel Wi-Fi). Try a phone hotspot.',
       });
     };
 
     socket.onclose = () => {
       this.stopHeartbeat();
       this.key = null;
-      // Before a successful handshake, rotate to the next candidate address.
       if (!this.everConnected && this.hosts.length > 1) {
         this.hostIndex = (this.hostIndex + 1) % this.hosts.length;
       }
@@ -103,22 +116,18 @@ export class SyncClient {
 
   private handle(raw: string): void {
     let message: InboundFrame;
-    try {
-      message = JSON.parse(raw);
-    } catch {
-      return;
-    }
+    try { message = JSON.parse(raw); } catch { return; }
 
     if (message.type === 'hello-ack' && message.publicKey) {
       this.key = sessionKey(this.identity, message.publicKey);
       this.everConnected = true;
+      this.reconnectDelay = BASE_RECONNECT_MS; // reset back-off on success
       this.events.onStatus({ state: 'connected', deviceName: message.deviceName ?? 'Windows PC' });
       this.startHeartbeat();
       return;
     }
 
     if (message.type === 'error') {
-      // A rejected pairing will be rejected again on retry, so stop trying.
       this.closedByUs = true;
       this.events.onStatus({ state: 'error', message: message.message ?? 'The PC refused the connection.' });
       return;
@@ -131,10 +140,8 @@ export class SyncClient {
     }
   }
 
-  /** Pushes locally copied text to the PC. No-op when not connected. */
   send(text: string): boolean {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN || !this.key) return false;
-
     this.socket.send(JSON.stringify({
       type: 'clip',
       id: `${this.deviceId}-${Date.now()}`,
@@ -159,7 +166,9 @@ export class SyncClient {
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeat = setInterval(() => {
-      if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ type: 'ping' }));
+      if (this.socket?.readyState === WebSocket.OPEN) {
+        this.socket.send(JSON.stringify({ type: 'ping' }));
+      }
     }, HEARTBEAT_INTERVAL_MS);
   }
 
@@ -170,7 +179,10 @@ export class SyncClient {
 
   private scheduleReconnect(): void {
     if (this.reconnect) clearTimeout(this.reconnect);
-    this.reconnect = setTimeout(() => this.connect(), RECONNECT_DELAY_MS);
+    this.reconnect = setTimeout(() => {
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, MAX_RECONNECT_MS);
+      this.connect();
+    }, this.reconnectDelay);
   }
 }
 

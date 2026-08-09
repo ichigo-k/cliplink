@@ -119,7 +119,7 @@ where
     F: Fn(InboundClip) + Send + Sync + 'static,
     G: Fn(PairedDevice) + Send + Sync + 'static,
 {
-    let on_clip   = Arc::new(on_clip);
+    let on_clip = Arc::new(on_clip);
     let on_paired = Arc::new(on_paired);
 
     std::thread::spawn(move || {
@@ -147,9 +147,10 @@ where
                 let state     = Arc::clone(&state);
                 let on_clip   = Arc::clone(&on_clip);
                 let on_paired = Arc::clone(&on_paired);
+                let peer_ip   = peer.ip().to_string();
 
                 tokio::spawn(async move {
-                    if let Err(e) = serve(stream, state, on_clip, on_paired).await {
+                    if let Err(e) = serve(stream, peer_ip, state, on_clip, on_paired).await {
                         eprintln!("ClipLink: session with {peer} ended: {e}");
                     }
                 });
@@ -160,6 +161,7 @@ where
 
 async fn serve(
     stream: tokio::net::TcpStream,
+    peer_ip: String,
     state: Arc<ServerState>,
     on_clip: Arc<impl Fn(InboundClip) + Send + Sync + 'static>,
     on_paired: Arc<impl Fn(PairedDevice) + Send + Sync + 'static>,
@@ -204,7 +206,14 @@ async fn serve(
         device_name: hello.device_name.clone(),
         public_key: hello.public_key.clone(),
         paired_at: now(),
+        last_host: Some(peer_ip.clone()),
+        last_seen: Some(now()),
     });
+    // Update last_seen every time they reconnect (not just first pair)
+    if let Ok(mut s) = state.settings.lock() {
+        s.update_last_seen(&hello.device_id, &peer_ip, now());
+        let _ = s.save(&state.settings_dir);
+    }
     on_paired(paired_device);
 
     let ack = HelloAck {

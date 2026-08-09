@@ -35,6 +35,7 @@ import {
 
 const IDENTITY_KEY = 'cliplink.identity';
 const OFFER_KEY = 'cliplink.offer';
+const LAST_HOST_KEY = 'cliplink.lastHost';
 
 /* ── Colour tokens ── */
 const C = {
@@ -60,6 +61,7 @@ type Toast = { message: string; type: 'success' | 'error' | 'info' };
 export default function App({ sharedText }: { sharedText?: string }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [offer, setOffer] = useState<PairingOffer | null>(null);
+  const [lastHost, setLastHost] = useState<string | undefined>(undefined);
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const [scanning, setScanning] = useState(false);
   const [lastReceived, setLastReceived] = useState('');
@@ -99,6 +101,9 @@ export default function App({ sharedText }: { sharedText?: string }) {
         try { setOffer(JSON.parse(storedOffer)); }
         catch { await SecureStore.deleteItemAsync(OFFER_KEY); }
       }
+
+      const storedLastHost = await SecureStore.getItemAsync(LAST_HOST_KEY);
+      if (storedLastHost) setLastHost(storedLastHost);
     })();
   }, []);
 
@@ -125,14 +130,24 @@ export default function App({ sharedText }: { sharedText?: string }) {
     if (!offer || !identity) return;
 
     const sync = new SyncClient(offer, identity, 'Android phone', {
-      onStatus: setStatus,
+      onStatus: (s) => {
+        setStatus(s);
+        // Persist the working host so the next cold-start reconnects instantly
+        if (s.state === 'connected') {
+          const h = (sync as any).host as string | undefined;
+          if (h) {
+            setLastHost(h);
+            SecureStore.setItemAsync(LAST_HOST_KEY, h).catch(() => { });
+          }
+        }
+      },
       onClip: async text => {
         await Clipboard.setStringAsync(text);
         setLastReceived(text);
         lastSentRef.current = text; // don't echo it back on next focus
         showToast('Clipboard updated from your PC', 'info');
       },
-    });
+    }, lastHost);
 
     client.current = sync;
     sync.connect();
@@ -261,7 +276,9 @@ export default function App({ sharedText }: { sharedText?: string }) {
 
   const unpair = useCallback(async () => {
     await SecureStore.deleteItemAsync(OFFER_KEY);
+    await SecureStore.deleteItemAsync(LAST_HOST_KEY);
     setOffer(null);
+    setLastHost(undefined);
     setStatus({ state: 'idle' });
     setLastReceived('');
     lastSentRef.current = '';
@@ -712,7 +729,7 @@ const S = StyleSheet.create({
   /* Scanner */
   scanRoot: { flex: 1, backgroundColor: '#000' },
   scanDim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
   reticle: {
