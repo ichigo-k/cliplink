@@ -4,6 +4,13 @@
  * Written by hand rather than committed as a binary blob so the mark can be
  * tweaked in a reviewable diff. Run `npx tauri icon src-tauri/icons/source.png`
  * afterwards to derive the .ico/.icns/png set the bundler needs.
+ *
+ *   node generate-icon.mjs [out.png] [--adaptive]
+ *
+ * --adaptive emits just the glyph on a transparent field, for Android's
+ * adaptive icons: those are masked to a circle or squircle at the OS's
+ * discretion, and only the middle ~66% is guaranteed to survive the crop, so
+ * the full-bleed artwork cannot be reused.
  */
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -11,6 +18,10 @@ import { dirname, resolve } from 'node:path';
 
 const SIZE = 1024;
 const SAMPLES = 3; // supersampling factor per axis, for smooth edges
+
+const ADAPTIVE = process.argv.includes('--adaptive');
+/** Fraction of the canvas the glyph occupies when adaptive. */
+const SAFE_ZONE = 0.58;
 
 const INK = [16, 37, 30]; // deep green background
 const ACCENT = [28, 126, 88]; // brand green
@@ -32,11 +43,8 @@ function mix(a, b, t) {
   ];
 }
 
-/** Colour and coverage of one sample point. */
-function sample(x, y) {
-  const bg = roundedRect(x, y, 512, 512, 1024, 1024, 230);
-  if (bg > 0) return null;
-
+/** The clipboard mark alone. Returns null outside it. */
+function glyph(x, y) {
   // Clipboard body, with the top tab cut in as a separate rounded rect.
   const body = roundedRect(x, y, 512, 545, 470, 560, 70);
   const tab = roundedRect(x, y, 512, 250, 250, 150, 55);
@@ -49,6 +57,22 @@ function sample(x, y) {
     return PAPER;
   }
   if (tab < 0) return PAPER;
+
+  return null;
+}
+
+/** Colour and coverage of one sample point. */
+function sample(x, y) {
+  if (ADAPTIVE) {
+    // Shrink the glyph toward the centre so the OS mask cannot clip it.
+    return glyph(512 + (x - 512) / SAFE_ZONE, 512 + (y - 512) / SAFE_ZONE);
+  }
+
+  const bg = roundedRect(x, y, 512, 512, 1024, 1024, 230);
+  if (bg > 0) return null;
+
+  const mark = glyph(x, y);
+  if (mark) return mark;
 
   // Background gradient runs top-left to bottom-right.
   return mix(INK, ACCENT, (x + y) / (SIZE * 2));
@@ -132,7 +156,8 @@ const png = Buffer.concat([
   chunk('IEND', Buffer.alloc(0)),
 ]);
 
-const out = resolve(process.argv[2] ?? 'src-tauri/icons/source.png');
+const target = process.argv.slice(2).find(arg => !arg.startsWith('--'));
+const out = resolve(target ?? 'src-tauri/icons/source.png');
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, png);
 console.log(`Wrote ${out} (${SIZE}x${SIZE}, ${(png.length / 1024).toFixed(1)} KiB)`);

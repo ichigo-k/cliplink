@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "desktop-ui",
+      "name": "cliplink-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--workspace", "apps/desktop"],
+      "runtimeArgs": ["run", "dev", "-w", "@cliplink/desktop"],
       "port": 1420
     }
   ]

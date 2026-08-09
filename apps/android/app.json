@@ -4,7 +4,8 @@
     "slug": "cliplink",
     "version": "0.1.4",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -17,9 +18,14 @@
       "permissions": [
         "CAMERA",
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "REQUEST_INSTALL_PACKAGES"
       ],
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#10251E"
+      }
     },
     "plugins": [
       [

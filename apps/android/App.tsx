@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -18,10 +19,15 @@ import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
-import * as Updates from 'expo-updates';
 import { identityFromB64, secretToB64, type Identity } from '@cliplink/crypto';
 import { parsePairingOffer, type PairingOffer } from '@cliplink/protocol';
 import { newIdentity, SyncClient, type Status } from './src/client';
+import {
+  checkForUpdate,
+  currentVersion,
+  downloadAndInstall,
+  type AvailableUpdate,
+} from './src/updater';
 
 const IDENTITY_KEY = 'cliplink.identity';
 const OFFER_KEY = 'cliplink.offer';
@@ -46,6 +52,8 @@ export default function App() {
   const [lastReceived, setLastReceived] = useState('');
   const [notice, setNotice] = useState('');
   const [sent, setSent] = useState(false);
+  const [update, setUpdate] = useState<AvailableUpdate | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
 
   const client = useRef<SyncClient | null>(null);
@@ -76,16 +84,20 @@ export default function App() {
 
   useEffect(() => {
     if (__DEV__) return;
-    Updates.checkForUpdateAsync()
-      .then(async result => {
-        if (!result.isAvailable) return;
-        Alert.alert('ClipLink update available', 'A new version is ready. Download it now?', [
-          { text: 'Later', style: 'cancel' },
-          { text: 'Update', onPress: async () => { await Updates.fetchUpdateAsync(); await Updates.reloadAsync(); } },
-        ]);
-      })
-      .catch(() => undefined);
+    checkForUpdate().then(setUpdate);
   }, []);
+
+  const installUpdate = useCallback(async () => {
+    if (!update) return;
+    setProgress(0);
+    try {
+      await downloadAndInstall(update, setProgress);
+    } catch (e) {
+      Alert.alert('Update failed', String(e));
+    } finally {
+      setProgress(null);
+    }
+  }, [update]);
 
   // Owns the socket's lifetime: one client per (offer, identity) pair.
   useEffect(() => {
@@ -193,10 +205,29 @@ export default function App() {
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.brandRow}>
-          <View style={styles.mark} />
+          <Image source={require('./assets/adaptive-icon.png')} style={styles.mark} />
           <Text style={styles.brand}>ClipLink</Text>
         </View>
         <Text style={styles.tagline}>Your clipboard, on both devices.</Text>
+
+        {!!update && (
+          <View style={[styles.card, styles.updateCard]}>
+            <Text style={styles.cardTitle}>Version {update.version} is available</Text>
+            <Text style={styles.body}>
+              You have {currentVersion()}. Android will ask you to confirm the install, and the first time it
+              will send you to settings to allow installs from ClipLink.
+            </Text>
+            <Pressable
+              style={[styles.primary, progress !== null && styles.primaryBusy]}
+              disabled={progress !== null}
+              onPress={installUpdate}
+            >
+              <Text style={styles.primaryText}>
+                {progress === null ? 'Download and install' : `Downloading ${Math.round(progress * 100)}%`}
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         <View style={styles.card}>
           <View style={styles.statusRow}>
@@ -293,7 +324,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 20, paddingTop: 36, gap: 14 },
 
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  mark: { width: 26, height: 26, borderRadius: 8, backgroundColor: C.mint },
+  mark: { width: 30, height: 30, borderRadius: 9, backgroundColor: '#10251e' },
   brand: { color: C.text, fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
   tagline: { color: C.muted, fontSize: 14, marginBottom: 8 },
 
@@ -332,7 +363,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryDone: { backgroundColor: C.edgeBright },
+  primaryBusy: { opacity: 0.6 },
   primaryText: { color: C.void, fontWeight: '700', fontSize: 15 },
+  updateCard: { borderColor: C.mint },
 
   ghost: {
     borderColor: C.edgeBright,
