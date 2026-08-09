@@ -1,5 +1,4 @@
-// Must be first: noble's randomBytes needs crypto.getRandomValues, which React
-// Native does not provide on its own.
+// Must be first: noble's randomBytes needs crypto.getRandomValues
 import 'react-native-get-random-values';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -37,26 +36,27 @@ const IDENTITY_KEY = 'cliplink.identity';
 const OFFER_KEY = 'cliplink.offer';
 const LAST_HOST_KEY = 'cliplink.lastHost';
 
-/* ── Colour tokens ── */
 const C = {
-  void: '#141414',
-  layer: '#1c1c1c',
-  card: '#222222',
-  input: '#1a1a1a',
-  edge: 'rgba(255,255,255,0.07)',
-  edgeBright: 'rgba(255,255,255,0.12)',
-  text: '#f3f3f3',
-  muted: '#9d9d9d',
-  faint: '#5a5a5a',
+  void: '#111111',
+  layer: '#1a1a1a',
+  card: '#1e1e1e',
+  cardAlt: '#242424',
+  input: '#161616',
+  edge: 'rgba(255,255,255,0.06)',
+  edgeBright: 'rgba(255,255,255,0.11)',
+  text: '#f2f2f2',
+  muted: '#888888',
+  faint: '#444444',
   accent: '#0078D4',
   accentLt: '#60CDFF',
   green: '#6CCB5F',
-  greenSoft: 'rgba(108,203,95,0.12)',
+  greenBg: 'rgba(108,203,95,0.10)',
   danger: '#FF6B6B',
 };
 
-/* ── Toast state ── */
 type Toast = { message: string; type: 'success' | 'error' | 'info' };
+
+type ReceivedClip = { text: string; at: number };
 
 export default function App({ sharedText }: { sharedText?: string }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -64,27 +64,29 @@ export default function App({ sharedText }: { sharedText?: string }) {
   const [lastHost, setLastHost] = useState<string | undefined>(undefined);
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const [scanning, setScanning] = useState(false);
-  const [lastReceived, setLastReceived] = useState('');
+  const [received, setReceived] = useState<ReceivedClip[]>([]);
   const [notice, setNotice] = useState('');
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
+  const [updateDl, setUpdateDl] = useState(false); // downloading silently
+  const [updateReady, setUpdateReady] = useState(false); // ready to install
   const [permission, requestPermission] = useCameraPermissions();
   const [toast, setToast] = useState<Toast | null>(null);
+  const [manualSent, setManualSent] = useState(false);
 
   const client = useRef<SyncClient | null>(null);
   const handledScan = useRef(false);
-  // Tracks the last text we auto-sent so we don't double-send on repeated focus
   const lastSentRef = useRef('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updateRef = useRef<AvailableUpdate | null>(null);
 
-  /* ── Toast helper ── */
+  /* ── Toast ── */
   const showToast = useCallback((message: string, type: Toast['type'] = 'success') => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, type });
-    toastTimer.current = setTimeout(() => setToast(null), 2800);
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
   }, []);
 
-  /* ── Identity / offer bootstrap ── */
+  /* ── Bootstrap ── */
   useEffect(() => {
     (async () => {
       const storedSecret = await SecureStore.getItemAsync(IDENTITY_KEY);
@@ -95,44 +97,44 @@ export default function App({ sharedText }: { sharedText?: string }) {
         await SecureStore.setItemAsync(IDENTITY_KEY, secretToB64(fresh));
         setIdentity(fresh);
       }
-
       const storedOffer = await SecureStore.getItemAsync(OFFER_KEY);
       if (storedOffer) {
         try { setOffer(JSON.parse(storedOffer)); }
         catch { await SecureStore.deleteItemAsync(OFFER_KEY); }
       }
-
       const storedLastHost = await SecureStore.getItemAsync(LAST_HOST_KEY);
       if (storedLastHost) setLastHost(storedLastHost);
     })();
   }, []);
 
-  /* ── Update check ── */
+  /* ── Update: check then auto-download silently in background ── */
   useEffect(() => {
     if (__DEV__) return;
-    checkForUpdate().then(setUpdate);
+    checkForUpdate().then(async (u) => {
+      if (!u) return;
+      updateRef.current = u;
+      setUpdate(u);
+      // Start downloading silently right away
+      setUpdateDl(true);
+      try {
+        await downloadAndInstall(u, () => { });
+        // downloadAndInstall launches the system installer prompt, so if we
+        // get here the user dismissed it. Mark ready so they can retry.
+        setUpdateReady(true);
+      } catch {
+        // Download failed silently — user can retry via the badge
+      } finally {
+        setUpdateDl(false);
+      }
+    });
   }, []);
-
-  const installUpdate = useCallback(async () => {
-    if (!update) return;
-    setProgress(0);
-    try {
-      await downloadAndInstall(update, setProgress);
-    } catch (e) {
-      Alert.alert('Update failed', String(e));
-    } finally {
-      setProgress(null);
-    }
-  }, [update]);
 
   /* ── Socket lifecycle ── */
   useEffect(() => {
     if (!offer || !identity) return;
-
     const sync = new SyncClient(offer, identity, 'Android phone', {
       onStatus: (s) => {
         setStatus(s);
-        // Persist the working host so the next cold-start reconnects instantly
         if (s.state === 'connected') {
           const h = (sync as any).host as string | undefined;
           if (h) {
@@ -141,82 +143,63 @@ export default function App({ sharedText }: { sharedText?: string }) {
           }
         }
       },
-      onClip: async text => {
-        await Clipboard.setStringAsync(text);
-        setLastReceived(text);
-        lastSentRef.current = text; // don't echo it back on next focus
-        showToast('Clipboard updated from your PC', 'info');
+      onClip: async (text) => {
+        // Add to received list — user taps to copy (avoids background write issue)
+        setReceived(prev => [{ text, at: Date.now() }, ...prev].slice(0, 20));
+        showToast('New clip from your PC — tap to copy', 'info');
       },
     }, lastHost);
-
     client.current = sync;
     sync.connect();
-
-    return () => {
-      sync.close();
-      client.current = null;
-    };
+    return () => { sync.close(); client.current = null; };
   }, [offer, identity, showToast]);
 
-  /* ── Auto-send on app focus (the seamless replacement for the button) ──
-   *
-   * Android only grants clipboard access while the app is foregrounded.
-   * We listen for the foreground transition and immediately read + send.
-   * This means: user copies something anywhere, switches to ClipLink, done.
-   * No extra tap needed.
-   */
+  /* ── Auto-send on foreground ── */
   const tryAutoSend = useCallback(async () => {
     const c = client.current;
-    if (!c) return;
-    if (status.state !== 'connected') return;
-
+    if (!c || status.state !== 'connected') return;
     const text = await Clipboard.getStringAsync();
-    if (!text) return;
-    if (text === lastSentRef.current) return; // same content, skip
-
+    if (!text || text === lastSentRef.current) return;
     if (c.send(text)) {
       lastSentRef.current = text;
-      showToast('Clipboard sent to your PC ✓', 'success');
+      showToast('Sent to your PC ✓');
     }
   }, [status, showToast]);
 
   useEffect(() => {
-    // Also try on mount in case the app was already open
     tryAutoSend();
-
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (next === 'active') tryAutoSend();
     });
     return () => sub.remove();
   }, [tryAutoSend]);
 
-  /* ── Handle incoming Share intent (text shared FROM another app) ── */
+  /* ── Share sheet intent (fresh launch) ── */
   useEffect(() => {
     if (!sharedText) return;
-    // App was launched via Share Sheet — send as soon as socket is connected
     const waitAndSend = () => {
       if (client.current?.send(sharedText)) {
         lastSentRef.current = sharedText;
-        showToast('Shared text sent to your PC ✓', 'success');
+        showToast('Shared text sent to your PC ✓');
       } else {
-        // Not connected yet, retry after a short delay
         setTimeout(waitAndSend, 600);
       }
     };
-    // Small delay to let the socket handshake complete
     const t = setTimeout(waitAndSend, 800);
     return () => clearTimeout(t);
   }, [sharedText, showToast]);
 
-  /* ── Handle share intent when app is already open (onNewIntent) ── */
+  /* ── Share sheet intent (app already open) ── */
   useEffect(() => {
-    const emitter = new NativeEventEmitter(NativeModules.RCTDeviceEventEmitter ?? NativeModules.DeviceEventEmitter);
+    const emitter = new NativeEventEmitter(
+      NativeModules.RCTDeviceEventEmitter ?? NativeModules.DeviceEventEmitter,
+    );
     const sub = emitter.addListener('onSharedText', (text: string) => {
       if (!text) return;
       const trySend = () => {
         if (client.current?.send(text)) {
           lastSentRef.current = text;
-          showToast('Shared text sent to your PC ✓', 'success');
+          showToast('Shared text sent to your PC ✓');
         } else {
           setTimeout(trySend, 600);
         }
@@ -230,14 +213,12 @@ export default function App({ sharedText }: { sharedText?: string }) {
   const onScan = useCallback(async ({ data }: { data: string }) => {
     if (handledScan.current) return;
     handledScan.current = true;
-
     const result = parsePairingOffer(data);
     if (!result.ok) {
       setNotice(result.reason);
       setTimeout(() => { handledScan.current = false; }, 1500);
       return;
     }
-
     setScanning(false);
     setNotice('');
     await SecureStore.setItemAsync(OFFER_KEY, JSON.stringify(result.offer));
@@ -258,19 +239,16 @@ export default function App({ sharedText }: { sharedText?: string }) {
     setScanning(true);
   }, [permission, requestPermission]);
 
-  /* ── Manual send (kept as a fallback, de-emphasised) ── */
-  const [manualSent, setManualSent] = useState(false);
   const sendClipboard = useCallback(async () => {
     const text = await Clipboard.getStringAsync();
-    if (!text) return showToast('Your clipboard is empty.', 'error');
-
+    if (!text) return showToast('Clipboard is empty', 'error');
     if (client.current?.send(text)) {
       lastSentRef.current = text;
       setManualSent(true);
-      showToast('Sent to your PC ✓', 'success');
+      showToast('Sent to your PC ✓');
       setTimeout(() => setManualSent(false), 1600);
     } else {
-      showToast('Not connected to your PC yet.', 'error');
+      showToast('Not connected yet', 'error');
     }
   }, [showToast]);
 
@@ -280,11 +258,26 @@ export default function App({ sharedText }: { sharedText?: string }) {
     setOffer(null);
     setLastHost(undefined);
     setStatus({ state: 'idle' });
-    setLastReceived('');
+    setReceived([]);
     lastSentRef.current = '';
   }, []);
 
-  /* ── Camera screen ── */
+  const copyReceived = useCallback(async (text: string) => {
+    await Clipboard.setStringAsync(text);
+    showToast('Copied ✓');
+  }, [showToast]);
+
+  const retryInstall = useCallback(async () => {
+    const u = updateRef.current ?? update;
+    if (!u) return;
+    try {
+      await downloadAndInstall(u, () => { });
+    } catch (e) {
+      Alert.alert('Install failed', String(e));
+    }
+  }, [update]);
+
+  /* ── Scanner screen ── */
   if (scanning) {
     return (
       <View style={S.scanRoot}>
@@ -299,7 +292,7 @@ export default function App({ sharedText }: { sharedText?: string }) {
         <View style={S.reticle} pointerEvents="none" />
         <SafeAreaView style={S.scanOverlay}>
           <Text style={S.scanHint}>Point at the QR code on your PC</Text>
-          {!!notice && <Text style={S.error}>{notice}</Text>}
+          {!!notice && <Text style={S.errorText}>{notice}</Text>}
           <Pressable style={S.ghost} onPress={() => setScanning(false)}>
             <Text style={S.ghostText}>Cancel</Text>
           </Pressable>
@@ -311,7 +304,6 @@ export default function App({ sharedText }: { sharedText?: string }) {
   const dotColor =
     status.state === 'connected' ? C.green :
       status.state === 'error' ? C.danger : C.faint;
-
   const isConnected = status.state === 'connected';
 
   return (
@@ -320,158 +312,142 @@ export default function App({ sharedText }: { sharedText?: string }) {
 
       {/* ── Toast ── */}
       {toast && (
-        <View style={[S.toast, toast.type === 'error' && S.toastError, toast.type === 'info' && S.toastInfo]}>
+        <View style={[S.toast,
+        toast.type === 'error' && S.toastError,
+        toast.type === 'info' && S.toastInfo,
+        ]}>
           <Text style={S.toastText}>{toast.message}</Text>
         </View>
       )}
 
-      <ScrollView contentContainerStyle={S.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* ── Brand header ── */}
+      <ScrollView
+        contentContainerStyle={S.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Header ── */}
         <View style={S.header}>
           <View style={S.logoWrap}>
             <Image source={require('./assets/adaptive-icon.png')} style={S.logo} />
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={S.brand}>ClipLink</Text>
             <Text style={S.tagline}>Clipboard, everywhere.</Text>
           </View>
+          {/* Update badge — appears once update is available */}
+          {!!update && (
+            <Pressable
+              style={[S.updateBadge, updateDl && S.updateBadgeDl]}
+              onPress={retryInstall}
+              disabled={updateDl}
+            >
+              {updateDl
+                ? <ActivityIndicator size={12} color="#fff" />
+                : <Text style={S.updateBadgeText}>
+                  {updateReady ? 'Install' : `v${update.version}`}
+                </Text>
+              }
+            </Pressable>
+          )}
         </View>
 
-        {/* ── Update banner ── */}
-        {!!update && (
-          <View style={[S.card, S.updateCard]}>
-            <View style={S.updateBadge}>
-              <Text style={S.updateBadgeText}>NEW</Text>
-            </View>
-            <Text style={S.cardTitle}>Version {update.version} available</Text>
-            <Text style={S.body}>
-              You have {currentVersion()}. Android will ask you to confirm the install.
+        {/* ── Status hero card ── */}
+        <View style={[S.heroCard, isConnected && S.heroCardConnected]}>
+          {/* Big status indicator */}
+          <View style={S.heroTop}>
+            <View style={[S.heroDot, {
+              backgroundColor: dotColor,
+              shadowColor: dotColor, shadowOpacity: isConnected ? 0.6 : 0,
+              shadowRadius: 8, elevation: isConnected ? 4 : 0
+            }]} />
+            <Text style={S.heroStatus}>
+              {offer ? statusTitle(status) : 'Not paired'}
             </Text>
-            <Pressable
-              style={[S.primary, progress !== null && S.primaryBusy]}
-              disabled={progress !== null}
-              onPress={installUpdate}
-            >
-              <Text style={S.primaryText}>
-                {progress === null
-                  ? 'Download & install'
-                  : `Downloading  ${Math.round(progress * 100)}%`}
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* ── Connection status card ── */}
-        <View style={S.card}>
-          <View style={S.statusRow}>
-            <View style={[S.dot, { backgroundColor: dotColor }]} />
-            <Text style={S.statusTitle}>{offer ? statusTitle(status) : 'Not paired'}</Text>
             {status.state === 'connecting' && (
-              <ActivityIndicator size="small" color={C.accentLt} />
+              <ActivityIndicator size="small" color={C.accentLt} style={{ marginLeft: 4 }} />
             )}
           </View>
 
-          <Text style={S.body}>
+          {/* Sub-text */}
+          <Text style={S.heroSub}>
             {offer
               ? statusDetail(status, offer)
-              : 'Open ClipLink on your Windows PC, go to Devices, and scan the QR code it shows.'}
+              : 'Open ClipLink on your Windows PC and scan the QR code shown there.'}
           </Text>
 
+          {/* Error detail */}
           {status.state === 'error' && !!status.detail && (
             <View style={S.hintBox}>
               <Text style={S.hintText}>{status.detail}</Text>
             </View>
           )}
+          {!!notice && <Text style={S.errorText}>{notice}</Text>}
 
-          {!!notice && <Text style={S.error}>{notice}</Text>}
-
+          {/* CTA */}
           {!offer ? (
             <Pressable style={S.primary} onPress={startScanning}>
               <Text style={S.primaryText}>Scan pairing code</Text>
             </Pressable>
           ) : (
-            <Pressable style={S.ghost} onPress={unpair}>
-              <Text style={S.ghostText}>Unpair device</Text>
-            </Pressable>
+            <View style={S.heroActions}>
+              {isConnected && (
+                <Pressable
+                  style={[S.actionBtn, manualSent && S.actionBtnDone]}
+                  onPress={sendClipboard}
+                >
+                  <Text style={S.actionBtnText}>
+                    {manualSent ? '✓ Sent' : 'Send clipboard'}
+                  </Text>
+                </Pressable>
+              )}
+              <Pressable style={S.actionBtnGhost} onPress={unpair}>
+                <Text style={S.actionBtnGhostText}>Unpair</Text>
+              </Pressable>
+            </View>
           )}
         </View>
 
-        {/* ── Auto-send explanation (only shown when paired) ── */}
-        {!!offer && isConnected && (
-          <View style={S.infoCard}>
-            <View style={S.infoIconRow}>
-              <View style={S.infoIcon}>
-                <Text style={S.infoIconText}>⚡</Text>
-              </View>
-              <Text style={S.infoTitle}>Seamless sync active</Text>
-            </View>
-            <Text style={S.body}>
-              Every time you come back to this app, your clipboard is sent to your PC automatically.
-              No button needed — just copy, switch here, done.
-            </Text>
-            {/* Manual send kept as a subtle fallback */}
-            <Pressable
-              style={[S.manualBtn, manualSent && S.manualBtnDone]}
-              onPress={sendClipboard}
-            >
-              <Text style={S.manualBtnText}>
-                {manualSent ? '✓ Sent' : 'Send now manually'}
-              </Text>
-            </Pressable>
+        {/* ── Received clips from PC ── */}
+        {received.length > 0 && (
+          <View style={S.section}>
+            <Text style={S.sectionLabel}>From your PC</Text>
+            {received.map((clip, i) => (
+              <Pressable
+                key={i}
+                style={S.clipRow}
+                onPress={() => copyReceived(clip.text)}
+              >
+                <Text style={S.clipText} numberOfLines={2}>{clip.text}</Text>
+                <View style={S.copyTag}>
+                  <Text style={S.copyTagText}>Copy</Text>
+                </View>
+              </Pressable>
+            ))}
           </View>
         )}
 
-        {/* ── Waiting to connect ── */}
-        {!!offer && !isConnected && (
-          <View style={S.infoCard}>
-            <Text style={S.infoTitle}>Tip</Text>
-            <Text style={S.body}>
-              Once connected, just copy something and switch back here — it sends automatically.
-              You can also share text directly to ClipLink from any app's share menu.
-            </Text>
-          </View>
-        )}
-
-        {/* ── Last received from PC ── */}
-        {!!lastReceived && (
-          <View style={S.card}>
-            <View style={S.cardTitleRow}>
-              <Text style={S.cardTitle}>From your PC</Text>
-              <View style={[S.dot, { backgroundColor: C.green }]} />
-            </View>
-            <Text style={S.mono} numberOfLines={8}>{lastReceived}</Text>
-            <Text style={S.footnote}>Already in your clipboard — just paste.</Text>
-          </View>
-        )}
-
-        <View style={{ height: 20 }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-/* ── Status helpers ── */
+/* ── Helpers ── */
 
 function statusTitle(status: Status): string {
   switch (status.state) {
     case 'connected': return 'Connected';
     case 'connecting': return 'Connecting…';
-    case 'error': return 'Cannot reach your PC';
+    case 'error': return 'Unreachable';
     default: return 'Paired';
   }
 }
 
 function statusDetail(status: Status, offer: PairingOffer): string {
   switch (status.state) {
-    case 'connected':
-      return `Linked to ${status.deviceName}.`;
-    case 'connecting':
-      return `Trying ${status.host}:${offer.port}…`;
-    case 'error':
-      return status.message;
-    default:
-      return `Paired with ${offer.deviceName}.`;
+    case 'connected': return `Syncing with ${status.deviceName}`;
+    case 'connecting': return `Trying ${status.host}…`;
+    case 'error': return status.message;
+    default: return `Paired with ${offer.deviceName}`;
   }
 }
 
@@ -484,197 +460,141 @@ const S = StyleSheet.create({
     paddingTop: RNStatusBar.currentHeight ?? 0,
   },
   scroll: {
-    padding: 20,
-    paddingTop: 28,
-    gap: 12,
+    padding: 18,
+    paddingTop: 24,
+    gap: 14,
   },
 
   /* Toast */
   toast: {
     position: 'absolute',
-    top: (RNStatusBar.currentHeight ?? 0) + 12,
-    left: 20,
-    right: 20,
+    top: (RNStatusBar.currentHeight ?? 0) + 10,
+    left: 16,
+    right: 16,
     zIndex: 100,
-    backgroundColor: '#1a2e1a',
-    borderRadius: 12,
-    paddingVertical: 12,
+    backgroundColor: '#1a2a1a',
+    borderRadius: 10,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: C.green,
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
     elevation: 8,
   },
-  toastError: {
-    backgroundColor: '#2e1a1a',
-    borderColor: C.danger,
-  },
-  toastInfo: {
-    backgroundColor: '#0c1f3a',
-    borderColor: C.accentLt,
-  },
-  toastText: {
-    color: C.text,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
+  toastError: { backgroundColor: '#2a1a1a', borderColor: C.danger },
+  toastInfo: { backgroundColor: '#0d1e2e', borderColor: C.accentLt },
+  toastText: { color: C.text, fontSize: 13, fontWeight: '600', textAlign: 'center' },
 
   /* Header */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    marginBottom: 6,
+    gap: 12,
+    marginBottom: 2,
   },
   logoWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    backgroundColor: '#0c1f3a',
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: '#0b1c33',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(0,120,212,0.25)',
+    borderColor: 'rgba(0,120,212,0.2)',
   },
-  logo: { width: 36, height: 36 },
-  brand: {
-    color: C.text,
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: -0.4,
-  },
-  tagline: {
-    color: C.muted,
-    fontSize: 13,
-    marginTop: 1,
-  },
+  logo: { width: 32, height: 32 },
+  brand: { color: C.text, fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },
+  tagline: { color: C.muted, fontSize: 12, marginTop: 1 },
 
-  /* Card */
-  card: {
+  /* Update badge in header */
+  updateBadge: {
+    backgroundColor: C.accent,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    minWidth: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  updateBadgeDl: { opacity: 0.7 },
+  updateBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+
+  /* Hero status card */
+  heroCard: {
     backgroundColor: C.card,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: C.edge,
-    padding: 18,
+    padding: 20,
     gap: 12,
   },
-  cardTitleRow: {
+  heroCardConnected: {
+    borderColor: 'rgba(108,203,95,0.20)',
+    backgroundColor: '#1b221b',
+  },
+  heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardTitle: {
-    color: C.text,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-
-  /* Info card (de-emphasised) */
-  infoCard: {
-    backgroundColor: C.layer,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    padding: 16,
     gap: 10,
   },
-  infoIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  heroDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
-  infoIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,120,212,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoIconText: { fontSize: 14 },
-  infoTitle: {
+  heroStatus: {
     color: C.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  /* Status */
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusTitle: {
-    color: C.text,
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     flex: 1,
+    letterSpacing: -0.2,
   },
-
-  /* Typography */
-  body: {
+  heroSub: {
     color: C.muted,
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  mono: {
-    color: C.text,
     fontSize: 13,
-    fontFamily: 'monospace',
     lineHeight: 20,
-    backgroundColor: C.input,
-    borderRadius: 10,
-    padding: 12,
-    overflow: 'hidden',
-  },
-  footnote: {
-    color: C.faint,
-    fontSize: 12,
   },
 
-  /* Hint / error */
-  hintBox: {
-    backgroundColor: 'rgba(255,107,107,0.08)',
+  /* Hero action row */
+  heroActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 2,
+  },
+  actionBtn: {
+    flex: 1,
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  actionBtnDone: {
+    backgroundColor: '#1e3a1e',
+    borderWidth: 1,
+    borderColor: C.green,
+  },
+  actionBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  actionBtnGhost: {
+    paddingVertical: 11,
+    paddingHorizontal: 16,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,107,107,0.20)',
-    padding: 12,
+    borderColor: C.edgeBright,
+    alignItems: 'center',
   },
-  hintText: {
-    color: '#ffb3a0',
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  error: {
-    color: C.danger,
-    fontSize: 13,
-    lineHeight: 19,
-  },
+  actionBtnGhostText: { color: C.muted, fontWeight: '600', fontSize: 14 },
 
-  /* Primary CTA */
+  /* Primary button (pairing) */
   primary: {
     backgroundColor: C.accent,
     borderRadius: 12,
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
+    marginTop: 2,
   },
-  primaryBusy: { opacity: 0.55 },
-  primaryText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
+  primaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  /* Ghost (secondary) */
+  /* Ghost button */
   ghost: {
     borderColor: C.edgeBright,
     borderWidth: 1,
@@ -682,79 +602,67 @@ const S = StyleSheet.create({
     paddingVertical: 13,
     alignItems: 'center',
   },
-  ghostText: {
-    color: C.muted,
-    fontWeight: '600',
-    fontSize: 14,
-  },
+  ghostText: { color: C.muted, fontWeight: '600', fontSize: 14 },
 
-  /* Manual send — small, de-emphasised */
-  manualBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+  /* Hint / error */
+  hintBox: {
+    backgroundColor: 'rgba(255,107,107,0.07)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: C.edgeBright,
+    borderColor: 'rgba(255,107,107,0.18)',
+    padding: 10,
   },
-  manualBtnDone: {
-    borderColor: C.green,
-    backgroundColor: C.greenSoft,
-  },
-  manualBtnText: {
-    color: C.muted,
-    fontSize: 13,
-    fontWeight: '500',
-  },
+  hintText: { color: '#ffb3a0', fontSize: 12, lineHeight: 18 },
+  errorText: { color: C.danger, fontSize: 13 },
 
-  /* Update card */
-  updateCard: {
-    borderColor: 'rgba(0,120,212,0.35)',
-    backgroundColor: 'rgba(0,120,212,0.06)',
-  },
-  updateBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: C.accent,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  updateBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '800',
+  /* Received clips section */
+  section: { gap: 8 },
+  sectionLabel: {
+    color: C.muted,
+    fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 2,
   },
+  clipRow: {
+    backgroundColor: C.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.edge,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  clipText: {
+    flex: 1,
+    color: C.text,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  copyTag: {
+    backgroundColor: 'rgba(0,120,212,0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,120,212,0.25)',
+  },
+  copyTagText: { color: C.accentLt, fontSize: 12, fontWeight: '600' },
 
   /* Scanner */
   scanRoot: { flex: 1, backgroundColor: '#000' },
-  scanDim: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
+  scanDim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.55)' },
   reticle: {
     position: 'absolute',
-    top: '26%',
-    left: '12%',
-    width: '76%',
-    aspectRatio: 1,
-    borderRadius: 24,
-    borderWidth: 2.5,
-    borderColor: C.accentLt,
-    shadowColor: C.accentLt,
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
+    top: '26%', left: '12%', width: '76%', aspectRatio: 1,
+    borderRadius: 24, borderWidth: 2.5, borderColor: C.accentLt,
+    shadowColor: C.accentLt, shadowOpacity: 0.5, shadowRadius: 12,
   },
   scanOverlay: {
-    position: 'absolute',
-    left: 0, right: 0, bottom: 0,
-    padding: 28,
-    gap: 12,
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    padding: 28, gap: 12,
   },
-  scanHint: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
+  scanHint: { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' },
 });
