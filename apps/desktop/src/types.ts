@@ -14,6 +14,7 @@ export type ClipEntry = {
   origin: string;
   deviceName: string;
   receivedAt: number;
+  pinned?: boolean;
 };
 
 export type PairedDevice = {

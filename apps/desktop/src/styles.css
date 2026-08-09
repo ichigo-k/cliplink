@@ -785,21 +785,49 @@ main {
   transition: background 0.07s, border-color 0.07s;
   overflow: hidden;
   flex: none;
+  cursor: pointer;
+  position: relative;
 }
 
-.flyout-list .clip:hover {
+.flyout-list .clip:hover,
+.flyout-list .clip.active {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.07);
 }
 
-.flyout-list .clip[data-active="true"] {
+.flyout-list .clip.active {
   background: rgba(0, 120, 212, 0.18);
   border-color: rgba(0, 120, 212, 0.35);
 }
 
+/* Pinned item gets a subtle left accent stripe */
+.flyout-list .clip.pinned {
+  background: rgba(96, 205, 255, 0.05);
+  border-color: rgba(96, 205, 255, 0.12);
+}
+
+.flyout-list .clip.pinned.active {
+  background: rgba(0, 120, 212, 0.22);
+  border-color: rgba(0, 120, 212, 0.4);
+}
+
+.clip-pin-stripe {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent-light);
+  opacity: 0.7;
+}
+
 /* Clip inner */
 .clip-inner {
-  padding: 7px 10px;
+  padding: 7px 8px 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .clip-body {
@@ -807,6 +835,7 @@ main {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+  flex: 1;
 }
 
 .clip-text {
@@ -818,7 +847,7 @@ main {
   color: var(--text);
 }
 
-.flyout-list .clip[data-active="true"] .clip-text {
+.flyout-list .clip.active .clip-text {
   white-space: normal;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -852,6 +881,52 @@ main {
   background: rgba(255, 255, 255, 0.05);
   font-size: 10px;
   color: var(--text-3);
+}
+
+/* ── Per-item action buttons (pin, delete) ── */
+
+.clip-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.clip-actions.visible {
+  opacity: 1;
+}
+
+.clip-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--text-3);
+  transition: background 0.1s, color 0.1s;
+  cursor: pointer;
+  flex: none;
+}
+
+.clip-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+.clip-action-btn.pinned {
+  color: var(--accent-light);
+  background: rgba(96, 205, 255, 0.1);
+  border-color: rgba(96, 205, 255, 0.2);
+}
+
+.clip-action-btn.danger:hover {
+  background: rgba(255, 107, 107, 0.15);
+  color: var(--red);
+  border-color: rgba(255, 107, 107, 0.2);
 }
 
 /* ── Section dividers ── */

@@ -2,18 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Laptop, Search, Smartphone } from 'lucide-react';
+import { Laptop, Pin, PinOff, Search, Smartphone, Trash2 } from 'lucide-react';
 import { oneLine, timeAgo, type ClipEntry } from './types';
 
 let cached: ReturnType<typeof getCurrentWindow> | null | undefined;
-
 function overlayWindow() {
   if (cached === undefined) {
-    try {
-      cached = getCurrentWindow();
-    } catch {
-      cached = null;
-    }
+    try { cached = getCurrentWindow(); }
+    catch { cached = null; }
   }
   return cached;
 }
@@ -23,6 +19,7 @@ export default function Overlay() {
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const [thisDevice, setThisDevice] = useState('');
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
 
@@ -45,6 +42,7 @@ export default function Overlay() {
       refresh();
       setQuery('');
       setCursor(0);
+      setHoveredId(null);
       search.current?.focus();
     });
 
@@ -57,8 +55,8 @@ export default function Overlay() {
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matched = q ? history.filter(c => c.text.toLowerCase().includes(q)) : history;
-    return matched.slice(0, 40);
+    const all = q ? history.filter(c => c.text.toLowerCase().includes(q)) : history;
+    return all.slice(0, 40);
   }, [history, query]);
 
   useEffect(() => {
@@ -69,70 +67,107 @@ export default function Overlay() {
     list.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [cursor]);
 
+  // ── Actions ──────────────────────────────────────────────────────────────
+
   const paste = useCallback(async (entry: ClipEntry | undefined) => {
     if (!entry) return;
-    try {
-      await invoke('copy_to_clipboard', { text: entry.text });
-    } catch {
-      /* backend surfaces its own failure */
-    }
-    await overlayWindow()?.hide();
+    // paste_from_overlay: writes clipboard, hides window, then fires Ctrl+V
+    await invoke('paste_from_overlay', { text: entry.text }).catch(() => { });
   }, []);
 
+  const togglePin = useCallback(async (e: React.MouseEvent, entry: ClipEntry) => {
+    e.stopPropagation();
+    const cmd = entry.pinned ? 'unpin_entry' : 'pin_entry';
+    await invoke(cmd, { id: entry.id }).catch(() => { });
+    refresh();
+  }, [refresh]);
+
+  const deleteEntry = useCallback(async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    await invoke('delete_entry', { id }).catch(() => { });
+    setHistory(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  // ── Keyboard nav ─────────────────────────────────────────────────────────
+
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape') { e.preventDefault(); overlayWindow()?.hide(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setCursor(c => Math.min(c + 1, results.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor(c => Math.max(c - 1, 0)); }
+    else if (e.key === 'Enter') { e.preventDefault(); paste(results[cursor]); }
+    else if (e.key === 'Delete' && hoveredId) {
       e.preventDefault();
-      overlayWindow()?.hide();
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setCursor(c => Math.min(c + 1, results.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setCursor(c => Math.max(c - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      paste(results[cursor]);
+      const entry = results.find(r => r.id === hoveredId);
+      if (entry) deleteEntry(e as unknown as React.MouseEvent, hoveredId);
     }
   }
 
-  // Group by today vs earlier for a Win11-style section divider feel
-  const now = Math.floor(Date.now() / 1000);
-  const todayCutoff = now - 86400;
-  const todayItems = results.filter(c => c.receivedAt >= todayCutoff);
-  const olderItems = results.filter(c => c.receivedAt < todayCutoff);
+  // ── Grouping ──────────────────────────────────────────────────────────────
+
+  const pinnedItems = results.filter(c => c.pinned);
+  const unpinnedItems = results.filter(c => !c.pinned);
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   function renderClip(entry: ClipEntry, globalIdx: number) {
     const isActive = globalIdx === cursor;
     const isLocal = entry.origin === thisDevice;
+    const isHovered = hoveredId === entry.id;
+
     return (
-      <button
+      <div
         key={entry.id}
-        data-active={isActive}
-        className="clip"
-        onMouseEnter={() => setCursor(globalIdx)}
+        className={`clip ${isActive ? 'active' : ''} ${entry.pinned ? 'pinned' : ''}`}
+        onMouseEnter={() => { setCursor(globalIdx); setHoveredId(entry.id); }}
+        onMouseLeave={() => setHoveredId(null)}
         onClick={() => paste(entry)}
+        role="button"
         tabIndex={-1}
         title={entry.text}
       >
+        {/* Pin indicator stripe */}
+        {entry.pinned && <div className="clip-pin-stripe" />}
+
         <div className="clip-inner">
           <div className="clip-body">
-            <span className="clip-text">{oneLine(entry.text, 80)}</span>
+            <span className="clip-text">{oneLine(entry.text, 70)}</span>
             <span className="clip-meta">
               <span className="clip-origin-tag">
-                {isLocal ? <Laptop size={10} /> : <Smartphone size={10} />}
+                {isLocal ? <Laptop size={9} /> : <Smartphone size={9} />}
                 {entry.deviceName}
               </span>
               <i>·</i>
               {timeAgo(entry.receivedAt)}
             </span>
           </div>
+
+          {/* Action buttons — appear on hover */}
+          <div className={`clip-actions ${isHovered || isActive ? 'visible' : ''}`}>
+            <button
+              className={`clip-action-btn ${entry.pinned ? 'pinned' : ''}`}
+              onClick={ev => togglePin(ev, entry)}
+              title={entry.pinned ? 'Unpin' : 'Pin'}
+              tabIndex={-1}
+            >
+              {entry.pinned ? <PinOff size={11} /> : <Pin size={11} />}
+            </button>
+            <button
+              className="clip-action-btn danger"
+              onClick={ev => deleteEntry(ev, entry.id)}
+              title="Delete"
+              tabIndex={-1}
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
         </div>
-      </button>
+      </div>
     );
   }
 
   return (
     <div className="flyout" onKeyDown={onKeyDown} tabIndex={-1}>
+
       {/* ── Header ── */}
       <header className="flyout-head" data-tauri-drag-region>
         <span className="flyout-title">Clipboard</span>
@@ -143,12 +178,12 @@ export default function Overlay() {
 
       {/* ── Search ── */}
       <div className="flyout-search">
-        <Search size={13} />
+        <Search size={12} />
         <input
           ref={search}
           value={query}
           onChange={e => { setQuery(e.target.value); setCursor(0); }}
-          placeholder="Search clipboard history"
+          placeholder="Search history…"
           spellCheck={false}
         />
       </div>
@@ -160,30 +195,39 @@ export default function Overlay() {
             {history.length === 0 ? 'Nothing copied yet.' : 'No matches.'}
           </p>
         ) : query ? (
-          // Flat list when searching
+          /* Flat when searching */
           results.map((entry, i) => renderClip(entry, i))
         ) : (
-          // Grouped: Today / Earlier
           <>
-            {todayItems.length > 0 && (
+            {/* Pinned section */}
+            {pinnedItems.length > 0 && (
               <>
-                <p className="flyout-section">Today</p>
-                {todayItems.map((entry, i) => renderClip(entry, i))}
+                <p className="flyout-section">
+                  <Pin size={9} style={{ display: 'inline', marginRight: 4 }} />
+                  Pinned
+                </p>
+                {pinnedItems.map((entry, i) => renderClip(entry, i))}
               </>
             )}
-            {olderItems.length > 0 && (
+
+            {/* Recent section */}
+            {unpinnedItems.length > 0 && (
               <>
-                <p className="flyout-section">Earlier</p>
-                {olderItems.map((entry, i) => renderClip(entry, todayItems.length + i))}
+                {pinnedItems.length > 0 && (
+                  <p className="flyout-section">Recent</p>
+                )}
+                {unpinnedItems.map((entry, i) =>
+                  renderClip(entry, pinnedItems.length + i)
+                )}
               </>
             )}
           </>
         )}
       </div>
 
-      {/* ── Footer shortcuts ── */}
+      {/* ── Footer ── */}
       <footer className="flyout-foot">
-        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↑</kbd><kbd>↓</kbd></span>
         <span><kbd>↵</kbd> paste</span>
         <span><kbd>esc</kbd> close</span>
       </footer>

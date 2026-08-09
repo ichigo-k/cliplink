@@ -35,6 +35,8 @@ struct ClipEntry {
     origin: String,
     device_name: String,
     received_at: u64,
+    #[serde(default)]
+    pinned: bool,
 }
 
 struct App {
@@ -54,9 +56,22 @@ impl App {
             .map(|s| s.history_limit)
             .unwrap_or(settings::DEFAULT_HISTORY_LIMIT);
         if let Ok(mut history) = self.history.lock() {
-            history.retain(|e| e.id != entry.id);
-            history.insert(0, entry);
-            history.truncate(limit);
+            // Remove any existing entry with same id or identical text
+            history.retain(|e| e.id != entry.id && e.text != entry.text);
+            // Pinned items always stay at the top; new unpinned items go after them
+            let insert_pos = history.iter().position(|e| !e.pinned).unwrap_or(0);
+            history.insert(insert_pos, entry);
+            // Never evict pinned items — only trim unpinned tail
+            let pinned_count = history.iter().filter(|e| e.pinned).count();
+            let max_unpinned = limit.saturating_sub(pinned_count);
+            let mut unpinned_seen = 0usize;
+            history.retain(|e| {
+                if e.pinned {
+                    return true;
+                }
+                unpinned_seen += 1;
+                unpinned_seen <= max_unpinned
+            });
         }
     }
 }
@@ -320,6 +335,68 @@ fn copy_to_clipboard(app: State<'_, App>, text: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Called from the overlay — writes to clipboard, hides the window, then
+/// simulates Ctrl+V so the text pastes straight into the previously active app.
+#[tauri::command]
+fn paste_from_overlay(
+    app_handle: tauri::AppHandle,
+    state: State<'_, App>,
+    text: String,
+) -> Result<(), String> {
+    clipboard::apply_text(&text, &state.suppressor)?;
+    if let Some(win) = app_handle.get_webview_window(OVERLAY) {
+        let _ = win.hide();
+    }
+    // Give the previous window ~100 ms to regain focus before Ctrl+V fires.
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+        if let Ok(mut e) = Enigo::new(&Settings::default()) {
+            let _ = e.key(Key::Control, Direction::Press);
+            let _ = e.key(Key::Unicode('v'), Direction::Click);
+            let _ = e.key(Key::Control, Direction::Release);
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn pin_entry(state: State<'_, App>, id: String) -> Result<(), String> {
+    if let Ok(mut h) = state.history.lock() {
+        if let Some(e) = h.iter_mut().find(|e| e.id == id) {
+            e.pinned = true;
+        }
+        if let Some(pos) = h.iter().position(|e| e.id == id) {
+            let item = h.remove(pos);
+            h.insert(0, item);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn unpin_entry(state: State<'_, App>, id: String) -> Result<(), String> {
+    if let Ok(mut h) = state.history.lock() {
+        if let Some(e) = h.iter_mut().find(|e| e.id == id) {
+            e.pinned = false;
+        }
+        if let Some(pos) = h.iter().position(|e| e.id == id) {
+            let item = h.remove(pos);
+            let insert_pos = h.iter().position(|e| !e.pinned).unwrap_or(0);
+            h.insert(insert_pos, item);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_entry(state: State<'_, App>, id: String) -> Result<(), String> {
+    if let Ok(mut h) = state.history.lock() {
+        h.retain(|e| e.id != id);
+    }
+    Ok(())
+}
+
 fn uuid_v4() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -411,6 +488,10 @@ pub fn run() {
             rename_device,
             get_history,
             copy_to_clipboard,
+            paste_from_overlay,
+            pin_entry,
+            unpin_entry,
+            delete_entry,
         ])
         .setup(|app| {
             let settings_dir = app.path().app_data_dir()?;

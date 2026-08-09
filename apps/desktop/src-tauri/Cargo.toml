@@ -39,6 +39,9 @@ uuid = { version = "1", features = ["v4"] }
 # System clipboard access
 arboard = "3"
 
+# Simulate keyboard input for auto-paste after overlay closes
+enigo = "0.2"
+
 # Enumerates network interfaces; one "local IP" is not enough to find the PC
 local-ip-address = "0.6"
 
