@@ -1,37 +1,27 @@
-/*
- * ClipLink desktop — dark, layered glass.
- *
- * Committed to a single dark theme rather than tracking the OS: translucency
- * and glow only read correctly against a dark base, and a half-working light
- * variant would look worse than none.
- *
- * No web fonts. The app is offline-first, so it uses the platform UI face.
- */
-
 :root {
   --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
 
-  --void: #070a09;
-  --text: #e9efeb;
-  --muted: #8b958f;
-  --faint: #5d665f;
+  --bg: #1a1616;
+  --bg-raised: #242020;
+  --bg-hover: #2e2929;
+  --bg-input: #141111;
 
-  --mint: #3ddc97;
-  --teal: #2dd4bf;
-  --violet: #7c7cf0;
+  --text: #f2f0eb;
+  --text-secondary: #a09a94;
+  --text-tertiary: #6b6462;
 
-  /* Glass is built from three stacked cues: a translucent fill, a hairline
-     border, and an inset top highlight that reads as a lit edge. */
-  --glass: rgb(255 255 255 / 0.035);
-  --glass-hover: rgb(255 255 255 / 0.06);
-  --edge: rgb(255 255 255 / 0.09);
-  --edge-bright: rgb(255 255 255 / 0.16);
-  --lit: inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --green: #73dc8c;
+  --green-dim: rgba(115, 220, 140, 0.12);
+  --red: #f07068;
 
-  --radius: 14px;
-  --radius-sm: 9px;
+  --border: #332e2e;
+  --border-light: #3d3737;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 9999px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   color-scheme: dark;
@@ -55,83 +45,14 @@ body {
   font-size: 14px;
   line-height: 1.55;
   color: var(--text);
-  background: var(--void);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
-/* The flyout window is transparent so the OS acrylic shows through. */
 html[data-window="overlay"],
 html[data-window="overlay"] body {
   background: transparent;
-}
-
-/* Slow-drifting colour behind everything. This is what stops large dark areas
-   reading as flat grey, and it is the single biggest contributor to depth. */
-.aurora {
-  position: fixed;
-  inset: -30%;
-  z-index: 0;
-  pointer-events: none;
-  filter: blur(90px) saturate(150%);
-  opacity: 0.5;
-}
-
-.aurora span {
-  position: absolute;
-  display: block;
-  border-radius: 50%;
-  animation: drift 26s var(--ease) infinite alternate;
-}
-
-.aurora span:nth-child(1) {
-  top: 4%;
-  left: 8%;
-  width: 46vw;
-  height: 46vw;
-  background: radial-gradient(circle, var(--mint), transparent 68%);
-  opacity: 0.5;
-}
-
-.aurora span:nth-child(2) {
-  top: 34%;
-  right: 2%;
-  width: 40vw;
-  height: 40vw;
-  background: radial-gradient(circle, var(--teal), transparent 68%);
-  opacity: 0.34;
-  animation-delay: -9s;
-}
-
-.aurora span:nth-child(3) {
-  bottom: 0%;
-  left: 32%;
-  width: 38vw;
-  height: 38vw;
-  background: radial-gradient(circle, var(--violet), transparent 70%);
-  opacity: 0.26;
-  animation-delay: -17s;
-}
-
-@keyframes drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(5%, -7%, 0) scale(1.16);
-  }
-}
-
-/* A trace of grain over the gradients. Without it, wide blurs band visibly on
-   8-bit displays and look cheap. */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 h1,
@@ -139,16 +60,18 @@ h2 {
   font-family: var(--font-display);
   font-weight: 600;
   margin: 0;
-  letter-spacing: -0.02em;
 }
 
 h1 {
-  font-size: 26px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
 }
 
 h2 {
-  font-size: 14px;
-  letter-spacing: -0.01em;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
 }
 
 p {
@@ -166,85 +89,97 @@ button {
 kbd {
   font-family: var(--font-mono);
   font-size: 11px;
-  padding: 2px 6px;
+  padding: 2px 7px;
   margin-right: 3px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--border-light);
   border-radius: 5px;
-  background: rgb(255 255 255 / 0.05);
-  box-shadow: var(--lit);
-  color: var(--text);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--text-secondary);
 }
 
 .error {
-  color: #ff9b85;
+  color: var(--red);
   margin-top: 8px;
 }
 
 /* ---------------------------------------------------------------- surfaces */
 
 .panel {
-  position: relative;
   padding: 20px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--glass);
-  backdrop-filter: blur(26px) saturate(150%);
-  box-shadow: var(--lit), 0 18px 40px rgb(0 0 0 / 0.3);
+  background: var(--bg-raised);
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
-  border: 1px solid var(--edge);
-  border-radius: var(--radius-sm);
-  background: var(--glass);
-  box-shadow: var(--lit);
+  padding: 9px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-light);
   font-size: 13px;
   font-weight: 500;
+  color: var(--text);
   transition:
-    transform 0.16s var(--ease),
-    background 0.16s var(--ease),
-    border-color 0.16s var(--ease);
+    background 0.15s var(--ease),
+    border-color 0.15s var(--ease);
 }
 
 .btn:hover {
-  background: var(--glass-hover);
-  border-color: var(--edge-bright);
-  transform: translateY(-1px);
+  background: var(--border);
+  border-color: var(--border-light);
 }
 
 .btn:active {
-  transform: translateY(0);
+  background: var(--border-light);
 }
 
 .btn svg {
-  opacity: 0.8;
+  opacity: 0.7;
+}
+
+.btn-primary {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--bg);
+}
+
+.btn-primary:hover {
+  background: #86e49e;
+  border-color: #86e49e;
+}
+
+.btn-primary:active {
+  background: #66d47e;
+  border-color: #66d47e;
+}
+
+.btn-primary svg {
+  opacity: 1;
 }
 
 /* ---------------------------------------------------------------- main app */
 
 .app {
   position: relative;
-  z-index: 2;
   display: grid;
-  grid-template-columns: 216px 1fr;
+  grid-template-columns: 220px 1fr;
   height: 100%;
 }
 
 .rail {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 28px;
   padding: 20px 14px;
-  border-right: 1px solid rgb(255 255 255 / 0.06);
-  background: rgb(0 0 0 / 0.22);
-  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border);
+  background: var(--bg);
 }
 
 .wordmark {
@@ -260,54 +195,37 @@ kbd {
 
 .wordmark img {
   border-radius: 7px;
-  box-shadow: 0 0 18px rgb(61 220 151 / 0.3);
 }
 
 .rail-nav {
   display: grid;
-  gap: 3px;
+  gap: 2px;
 }
 
 .rail-nav button {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 11px;
   padding: 9px 11px;
   border-radius: var(--radius-sm);
-  color: var(--muted);
+  color: var(--text-secondary);
   text-align: left;
   transition:
-    color 0.16s var(--ease),
-    background 0.16s var(--ease);
+    color 0.14s var(--ease),
+    background 0.14s var(--ease);
 }
 
 .rail-nav button:hover {
   color: var(--text);
-  background: rgb(255 255 255 / 0.04);
+  background: var(--bg-raised);
 }
 
 .rail-nav button.active {
   color: var(--text);
-  background: var(--glass);
-  border: 1px solid var(--edge);
-  box-shadow: var(--lit);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
   padding: 8px 10px;
   font-weight: 600;
-}
-
-/* The active item gets a small glowing bar, the one place the accent is loud. */
-.rail-nav button.active::before {
-  content: "";
-  position: absolute;
-  left: -14px;
-  top: 50%;
-  translate: 0 -50%;
-  width: 3px;
-  height: 17px;
-  border-radius: 0 3px 3px 0;
-  background: var(--mint);
-  box-shadow: 0 0 12px var(--mint);
 }
 
 .rail-status {
@@ -316,10 +234,9 @@ kbd {
   gap: 10px;
   margin-top: auto;
   padding: 12px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--glass);
-  box-shadow: var(--lit);
+  background: var(--bg-raised);
 }
 
 .rail-status i {
@@ -327,20 +244,12 @@ kbd {
   height: 7px;
   margin-top: 7px;
   border-radius: 50%;
-  background: var(--faint);
+  background: var(--text-tertiary);
   flex: none;
 }
 
 .rail-status.on i {
-  background: var(--mint);
-  box-shadow: 0 0 0 3px rgb(61 220 151 / 0.16);
-  animation: pulse 2.4s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  50% {
-    box-shadow: 0 0 0 6px rgb(61 220 151 / 0);
-  }
+  background: var(--green);
 }
 
 .rail-status div {
@@ -356,14 +265,14 @@ kbd {
 .rail-status span {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--muted);
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 main {
   overflow-y: auto;
-  position: relative;
+  background: var(--bg);
 }
 
 .page {
@@ -372,23 +281,23 @@ main {
   display: grid;
   gap: 20px;
   align-content: start;
-  animation: rise 0.4s var(--ease) both;
+  animation: rise 0.28s var(--ease) both;
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(9px);
+    transform: translateY(6px);
   }
 }
 
 .page-head {
   display: grid;
-  gap: 7px;
+  gap: 6px;
 }
 
 .page-head p {
-  color: var(--muted);
+  color: var(--text-secondary);
   max-width: 62ch;
 }
 
@@ -411,10 +320,9 @@ main {
 
 .qr {
   padding: 13px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   line-height: 0;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
   transition: opacity 0.3s var(--ease);
 }
 
@@ -440,7 +348,7 @@ main {
   margin: 12px 0 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .rows li {
@@ -451,7 +359,7 @@ main {
 }
 
 .rows li svg {
-  color: var(--mint);
+  color: var(--green);
 }
 
 .rows li div {
@@ -474,34 +382,30 @@ main {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .clips li {
-  animation: rise 0.32s var(--ease) both;
+  animation: rise 0.24s var(--ease) both;
 }
 
 .clips button {
   display: grid;
   gap: 5px;
   width: 100%;
-  padding: 13px 15px;
-  border: 1px solid var(--edge);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--glass);
-  backdrop-filter: blur(20px);
-  box-shadow: var(--lit);
+  background: var(--bg-raised);
   text-align: left;
   transition:
-    background 0.16s var(--ease),
-    border-color 0.16s var(--ease),
-    transform 0.16s var(--ease);
+    background 0.14s var(--ease),
+    border-color 0.14s var(--ease);
 }
 
 .clips button:hover {
-  background: var(--glass-hover);
-  border-color: var(--edge-bright);
-  transform: translateX(2px);
+  background: var(--bg-hover);
+  border-color: var(--border-light);
 }
 
 .clip-text {
@@ -514,7 +418,7 @@ main {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--text-secondary);
 }
 
 .clip-meta i {
@@ -529,7 +433,7 @@ main {
   margin-left: 5px;
   font-style: normal;
   font-weight: 600;
-  color: var(--mint);
+  color: var(--green);
 }
 
 .empty {
@@ -537,12 +441,12 @@ main {
   justify-items: center;
   gap: 12px;
   padding: 56px;
-  color: var(--muted);
+  color: var(--text-secondary);
   text-align: center;
 }
 
 .empty svg {
-  color: var(--faint);
+  color: var(--text-tertiary);
 }
 
 .setting {
@@ -569,47 +473,42 @@ main {
   justify-content: center;
   min-width: 142px;
   padding: 9px 14px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgb(0 0 0 / 0.25);
-  box-shadow: var(--lit);
-  transition: border-color 0.16s var(--ease);
+  background: var(--bg-input);
+  transition: border-color 0.14s var(--ease);
 }
 
 .hotkey:hover {
-  border-color: var(--edge-bright);
+  border-color: var(--border-light);
 }
 
 .hotkey.recording {
-  border-color: var(--mint);
-  color: var(--mint);
+  border-color: var(--green);
+  color: var(--green);
   font-size: 13px;
-  box-shadow: 0 0 0 3px rgb(61 220 151 / 0.13);
+  box-shadow: 0 0 0 2px var(--green-dim);
 }
 
 /* -------------------------------------------------------------- the flyout */
 
 .flyout {
   position: relative;
-  z-index: 2;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
   height: 100%;
-  border: 1px solid var(--edge-bright);
+  border: 1px solid var(--border-light);
   border-radius: 14px;
-  background: rgb(10 14 12 / 0.72);
-  backdrop-filter: blur(34px) saturate(170%);
-  box-shadow:
-    var(--lit),
-    0 26px 60px rgb(0 0 0 / 0.5);
+  background: rgba(22, 18, 18, 0.92);
+  backdrop-filter: blur(24px) saturate(140%);
   overflow: hidden;
-  animation: flyin 0.19s var(--ease) both;
+  animation: flyin 0.18s var(--ease) both;
 }
 
 @keyframes flyin {
   from {
     opacity: 0;
-    transform: scale(0.97) translateY(6px);
+    transform: scale(0.97) translateY(5px);
   }
 }
 
@@ -624,13 +523,12 @@ main {
   font-family: var(--font-display);
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 
 .flyout-count {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--faint);
+  color: var(--text-tertiary);
 }
 
 .flyout-search {
@@ -639,16 +537,16 @@ main {
   gap: 9px;
   margin: 0 14px 10px;
   padding: 9px 12px;
-  border: 1px solid var(--edge);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgb(0 0 0 / 0.3);
-  color: var(--faint);
-  transition: border-color 0.16s var(--ease);
+  background: var(--bg-input);
+  color: var(--text-tertiary);
+  transition: border-color 0.14s var(--ease);
 }
 
 .flyout-search:focus-within {
-  border-color: rgb(61 220 151 / 0.5);
-  box-shadow: 0 0 0 3px rgb(61 220 151 / 0.1);
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px var(--green-dim);
 }
 
 .flyout-search input {
@@ -663,14 +561,14 @@ main {
 }
 
 .flyout-search input::placeholder {
-  color: var(--faint);
+  color: var(--text-tertiary);
 }
 
 .flyout-list {
   overflow-y: auto;
   padding: 0 10px 4px;
   display: grid;
-  gap: 3px;
+  gap: 2px;
   align-content: start;
 }
 
@@ -682,19 +580,19 @@ main {
   border-radius: var(--radius-sm);
   text-align: left;
   transition:
-    background 0.13s var(--ease),
-    border-color 0.13s var(--ease);
+    background 0.12s var(--ease),
+    border-color 0.12s var(--ease);
 }
 
 .flyout-list .clip[data-active="true"] {
-  background: rgb(61 220 151 / 0.1);
-  border-color: rgb(61 220 151 / 0.26);
+  background: var(--green-dim);
+  border-color: rgba(115, 220, 140, 0.2);
 }
 
 .flyout-empty {
   padding: 44px 12px;
   text-align: center;
-  color: var(--faint);
+  color: var(--text-tertiary);
   font-size: 13px;
 }
 
@@ -702,10 +600,10 @@ main {
   display: flex;
   gap: 16px;
   padding: 10px 16px;
-  border-top: 1px solid rgb(255 255 255 / 0.06);
-  background: rgb(0 0 0 / 0.2);
+  border-top: 1px solid var(--border);
+  background: rgba(20, 17, 17, 0.6);
   font-size: 11px;
-  color: var(--faint);
+  color: var(--text-tertiary);
 }
 
 .flyout-foot span {
@@ -720,23 +618,23 @@ main {
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
+  width: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 6px;
-  background: rgb(255 255 255 / 0.12);
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background: var(--border-light);
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(255 255 255 / 0.2);
+  background: var(--text-tertiary);
   background-clip: content-box;
 }
 
 ::selection {
-  background: rgb(61 220 151 / 0.28);
+  background: rgba(115, 220, 140, 0.25);
 }
 
 @media (prefers-reduced-motion: reduce) {

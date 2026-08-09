@@ -139,13 +139,6 @@ export default function App() {
 
   return (
     <>
-      {/* Drifting colour behind the glass. Purely decorative. */}
-      <div className="aurora" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
-
       <div className="app">
         <nav className="rail">
         <div className="wordmark">
