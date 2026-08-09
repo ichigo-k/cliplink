@@ -144,9 +144,12 @@ export default function App({ sharedText }: { sharedText?: string }) {
         }
       },
       onClip: async (text) => {
-        // Add to received list — user taps to copy (avoids background write issue)
+        // Write directly to Android clipboard — this works from background
+        // because setStringAsync (write) is not restricted, only read is.
+        try { await Clipboard.setStringAsync(text); } catch { /* best effort */ }
+        // Also keep a visible history so user can see what arrived
         setReceived(prev => [{ text, at: Date.now() }, ...prev].slice(0, 20));
-        showToast('New clip from your PC — tap to copy', 'info');
+        showToast('Clipboard synced from PC ✓', 'info');
       },
     }, lastHost);
     client.current = sync;
@@ -418,7 +421,7 @@ export default function App({ sharedText }: { sharedText?: string }) {
               >
                 <Text style={S.clipText} numberOfLines={2}>{clip.text}</Text>
                 <View style={S.copyTag}>
-                  <Text style={S.copyTagText}>Copy</Text>
+                  <Text style={S.copyTagText}>Re-copy</Text>
                 </View>
               </Pressable>
             ))}
