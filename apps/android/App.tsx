@@ -34,6 +34,7 @@ import {
   checkForUpdate,
   currentVersion,
   downloadAndInstall,
+  notifyUpdateAvailable,
   type AvailableUpdate,
 } from './src/updater';
 
@@ -119,6 +120,9 @@ export default function App({ sharedText }: { sharedText?: string }) {
       if (!u) return;
       updateRef.current = u;
       setUpdate(u);
+      // Notify first: this is the only part guaranteed to survive the app
+      // being swiped away before the silent download below finishes.
+      notifyUpdateAvailable(u);
       // Start downloading silently right away
       setUpdateDl(true);
       try {

@@ -7,6 +7,7 @@
  */
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
+import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 
 const RELEASES_URL = 'https://api.github.com/repos/ichigo-k/cliplink/releases/latest';
@@ -63,6 +64,34 @@ export async function checkForUpdate(): Promise<AvailableUpdate | null> {
     return { version: latest, downloadUrl: apk.browser_download_url, notes: release.body ?? '' };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Fires an OS notification the moment an update is found, before the silent
+ * download even starts.
+ *
+ * The download itself runs on the JS thread with no foreground service, so
+ * closing the app mid-download kills it with nothing to show for it. This is
+ * the part of the flow that's guaranteed to land regardless of how quickly
+ * the app gets swiped away afterward.
+ */
+export async function notifyUpdateAvailable(update: AvailableUpdate): Promise<void> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') {
+      const { status: requested } = await Notifications.requestPermissionsAsync();
+      if (requested !== 'granted') return;
+    }
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `ClipLink v${update.version} is available`,
+        body: 'Downloading now — open ClipLink to finish installing.',
+      },
+      trigger: null,
+    });
+  } catch {
+    // Notification failing is not worth interrupting the update over.
   }
 }
 

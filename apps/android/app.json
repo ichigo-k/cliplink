@@ -2,7 +2,7 @@
   "expo": {
     "name": "ClipLink",
     "slug": "cliplink",
-    "version": "0.1.14",
+    "version": "0.1.15",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -51,6 +51,12 @@
           "android": {
             "usesCleartextTraffic": true
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#22C55E"
         }
       ]
     ]
