@@ -88,9 +88,22 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     # The `secrets` context is not usable in step-level `if`, so fold the check
-    # into a job-level env var, which may reference secrets.
+    # into job-level env vars, which may reference secrets.
+    #
+    # All four are required together: with the keystore but no password, gradle
+    # gets blank credentials and fails deep in the signing task with an error
+    # that says nothing about the real cause.
     env:
-      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_KEYSTORE: >-
+        ${{ secrets.ANDROID_KEYSTORE_BASE64 != ''
+        && secrets.ANDROID_KEYSTORE_PASSWORD != ''
+        && secrets.ANDROID_KEY_ALIAS != ''
+        && secrets.ANDROID_KEY_PASSWORD != '' }}
+      PARTIAL_KEYSTORE: >-
+        ${{ secrets.ANDROID_KEYSTORE_BASE64 != ''
+        && (secrets.ANDROID_KEYSTORE_PASSWORD == ''
+        || secrets.ANDROID_KEY_ALIAS == ''
+        || secrets.ANDROID_KEY_PASSWORD == '') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -131,10 +144,18 @@ jobs:
         working-directory: apps/android
         run: node scripts/configure-signing.mjs
 
-      - name: Warn about debug signing
-        if: env.HAS_KEYSTORE != 'true'
+      # Half-configured is a mistake, not a choice: fail rather than quietly
+      # shipping a debug-signed APK that nobody can update from.
+      - name: Reject a partial keystore setup
+        if: env.PARTIAL_KEYSTORE == 'true'
         run: |
-          echo "::warning::ANDROID_KEYSTORE_BASE64 is not set. This APK is debug-signed and cannot update an existing install."
+          echo "::error::ANDROID_KEYSTORE_BASE64 is set but one of ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS or ANDROID_KEY_PASSWORD is missing. All four are required together."
+          exit 1
+
+      - name: Warn about debug signing
+        if: env.HAS_KEYSTORE != 'true' && env.PARTIAL_KEYSTORE != 'true'
+        run: |
+          echo "::warning::No signing keystore configured. This APK is debug-signed and cannot update an existing install."
 
       - name: Build APK
         working-directory: apps/android/android
