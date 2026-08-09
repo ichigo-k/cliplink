@@ -133,11 +133,19 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
           {
+            # Expo writes gradle.properties without a trailing newline, so
+            # without this the first property is appended onto the end of the
+            # last existing line and silently disappears.
+            echo ""
             echo "CLIPLINK_UPLOAD_STORE_FILE=release.keystore"
             echo "CLIPLINK_UPLOAD_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
             echo "CLIPLINK_UPLOAD_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}"
             echo "CLIPLINK_UPLOAD_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}"
           } >> gradle.properties
+
+          # Fail here rather than 300 lines into a gradle stack trace.
+          grep -q '^CLIPLINK_UPLOAD_STORE_FILE=' gradle.properties \
+            || { echo "::error::Signing properties did not land in gradle.properties"; exit 1; }
 
       - name: Point release builds at the keystore
         if: env.HAS_KEYSTORE == 'true'

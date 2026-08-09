@@ -1,6 +1,6 @@
 [package]
 name = "cliplink"
-version = "0.1.5"
+version = "0.1.6"
 description = "Private local clipboard and file bridge"
 authors = ["ClipLink contributors"]
 edition = "2021"
