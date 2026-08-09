@@ -97,9 +97,6 @@ html[data-window="overlay"] #root {
   overflow: hidden;
 }
 
-background: transparent;
-}
-
 p {
   margin: 0;
 }
