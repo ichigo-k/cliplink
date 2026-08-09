@@ -2,7 +2,7 @@
   "expo": {
     "name": "ClipLink",
     "slug": "cliplink",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -19,7 +19,11 @@
         "CAMERA",
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "REQUEST_INSTALL_PACKAGES"
+        "REQUEST_INSTALL_PACKAGES",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_DATA_SYNC",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK"
       ],
       "usesCleartextTraffic": true,
       "adaptiveIcon": {

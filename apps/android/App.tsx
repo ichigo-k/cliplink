@@ -26,6 +26,11 @@ import { identityFromB64, secretToB64, type Identity } from '@cliplink/crypto';
 import { parsePairingOffer, type PairingOffer } from '@cliplink/protocol';
 import { newIdentity, SyncClient, type Status } from './src/client';
 import {
+  startBackgroundSync,
+  stopBackgroundSync,
+  updateBackgroundStatus,
+} from './src/backgroundSync';
+import {
   checkForUpdate,
   currentVersion,
   downloadAndInstall,
@@ -141,6 +146,11 @@ export default function App({ sharedText }: { sharedText?: string }) {
             setLastHost(h);
             SecureStore.setItemAsync(LAST_HOST_KEY, h).catch(() => { });
           }
+          // Keep the JS runtime alive while the socket is up so PC → phone
+          // clips still land when the app is backgrounded.
+          startBackgroundSync().then(() => updateBackgroundStatus(s.deviceName));
+        } else if (s.state === 'idle' || s.state === 'error') {
+          stopBackgroundSync();
         }
       },
       onClip: async (text) => {
@@ -154,7 +164,11 @@ export default function App({ sharedText }: { sharedText?: string }) {
     }, lastHost);
     client.current = sync;
     sync.connect();
-    return () => { sync.close(); client.current = null; };
+    return () => {
+      sync.close();
+      client.current = null;
+      stopBackgroundSync();
+    };
   }, [offer, identity, showToast]);
 
   /* ── Auto-send on foreground ── */
