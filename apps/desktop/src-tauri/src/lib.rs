@@ -540,6 +540,7 @@ pub fn run() {
                         origin: clip.origin,
                         device_name,
                         received_at: now(),
+                        pinned: false,
                     };
 
                     if let Some(state) = handle.try_state::<App>() {
@@ -562,6 +563,7 @@ pub fn run() {
                     origin: outbound_state.device_id.clone(),
                     device_name: outbound_state.device_name(),
                     received_at: now(),
+                    pinned: false,
                 };
 
                 let _ = outbound_state.outgoing.send(OutgoingClip {
