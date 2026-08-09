@@ -64,9 +64,19 @@ impl App {
 fn rank(adapter: &str, ip: &Ipv4Addr) -> u8 {
     let name = adapter.to_ascii_lowercase();
     let virtualised = [
-        "vethernet", "wsl", "docker", "vmware", "virtualbox",
-        "hyper-v", "tailscale", "zerotier", "radmin",
-        "tap", "tun", "utun", "bridge",
+        "vethernet",
+        "wsl",
+        "docker",
+        "vmware",
+        "virtualbox",
+        "hyper-v",
+        "tailscale",
+        "zerotier",
+        "radmin",
+        "tap",
+        "tun",
+        "utun",
+        "bridge",
     ]
     .iter()
     .any(|needle| name.contains(needle));
@@ -77,7 +87,11 @@ fn rank(adapter: &str, ip: &Ipv4Addr) -> u8 {
         [172, second, ..] if (16..=31).contains(&second) => 2,
         _ => 3,
     };
-    if virtualised { base + 10 } else { base }
+    if virtualised {
+        base + 10
+    } else {
+        base
+    }
 }
 
 fn candidate_hosts() -> Vec<String> {
@@ -98,7 +112,10 @@ fn candidate_hosts() -> Vec<String> {
     let hosts: Vec<String> = found.into_iter().map(|(_, ip)| ip).collect();
     if hosts.is_empty() {
         return UdpSocket::bind("0.0.0.0:0")
-            .and_then(|s| { s.connect("8.8.8.8:80")?; s.local_addr() })
+            .and_then(|s| {
+                s.connect("8.8.8.8:80")?;
+                s.local_addr()
+            })
             .map(|addr| vec![addr.ip().to_string()])
             .unwrap_or_else(|_| vec!["127.0.0.1".into()]);
     }
@@ -137,7 +154,11 @@ struct SettingsView {
 
 #[tauri::command]
 fn get_settings(app: State<'_, App>) -> Result<SettingsView, String> {
-    let s = app.server.settings.lock().map_err(|_| "settings unavailable")?;
+    let s = app
+        .server
+        .settings
+        .lock()
+        .map_err(|_| "settings unavailable")?;
     Ok(SettingsView {
         hotkey: s.hotkey.clone(),
         device_name: s.device_name.clone(),
@@ -149,11 +170,15 @@ fn get_settings(app: State<'_, App>) -> Result<SettingsView, String> {
 
 #[tauri::command]
 fn set_hotkey(app: tauri::AppHandle, state: State<'_, App>, hotkey: String) -> Result<(), String> {
-    let parsed = Shortcut::from_str(&hotkey)
-        .map_err(|_| format!("'{hotkey}' is not a valid shortcut."))?;
+    let parsed =
+        Shortcut::from_str(&hotkey).map_err(|_| format!("'{hotkey}' is not a valid shortcut."))?;
 
     let previous = {
-        let s = state.server.settings.lock().map_err(|_| "settings unavailable")?;
+        let s = state
+            .server
+            .settings
+            .lock()
+            .map_err(|_| "settings unavailable")?;
         s.hotkey.clone()
     };
 
@@ -165,9 +190,14 @@ fn set_hotkey(app: tauri::AppHandle, state: State<'_, App>, hotkey: String) -> R
         let _ = app.global_shortcut().unregister(old);
     }
 
-    let mut s = state.server.settings.lock().map_err(|_| "settings unavailable")?;
+    let mut s = state
+        .server
+        .settings
+        .lock()
+        .map_err(|_| "settings unavailable")?;
     s.hotkey = hotkey;
-    s.save(&state.server.settings_dir).map_err(|e| e.to_string())
+    s.save(&state.server.settings_dir)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -182,18 +212,28 @@ fn set_launch_at_startup(
     } else {
         autostart.disable().map_err(|e| e.to_string())?;
     }
-    let mut s = state.server.settings.lock().map_err(|_| "settings unavailable")?;
+    let mut s = state
+        .server
+        .settings
+        .lock()
+        .map_err(|_| "settings unavailable")?;
     s.launch_at_startup = enabled;
-    s.save(&state.server.settings_dir).map_err(|e| e.to_string())
+    s.save(&state.server.settings_dir)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn set_history_limit(state: State<'_, App>, limit: usize) -> Result<(), String> {
     let clamped = limit.clamp(10, 500);
     {
-        let mut s = state.server.settings.lock().map_err(|_| "settings unavailable")?;
+        let mut s = state
+            .server
+            .settings
+            .lock()
+            .map_err(|_| "settings unavailable")?;
         s.history_limit = clamped;
-        s.save(&state.server.settings_dir).map_err(|e| e.to_string())?;
+        s.save(&state.server.settings_dir)
+            .map_err(|e| e.to_string())?;
     }
     // Trim existing history to the new limit
     if let Ok(mut history) = state.history.lock() {
@@ -204,7 +244,11 @@ fn set_history_limit(state: State<'_, App>, limit: usize) -> Result<(), String> 
 
 #[tauri::command]
 fn clear_history(state: State<'_, App>) -> Result<(), String> {
-    state.history.lock().map_err(|_| "history unavailable")?.clear();
+    state
+        .history
+        .lock()
+        .map_err(|_| "history unavailable")?
+        .clear();
     Ok(())
 }
 
@@ -214,9 +258,14 @@ fn unpair_device(
     state: State<'_, App>,
     device_id: String,
 ) -> Result<(), String> {
-    let mut s = state.server.settings.lock().map_err(|_| "settings unavailable")?;
+    let mut s = state
+        .server
+        .settings
+        .lock()
+        .map_err(|_| "settings unavailable")?;
     s.remove_device(&device_id);
-    s.save(&state.server.settings_dir).map_err(|e| e.to_string())?;
+    s.save(&state.server.settings_dir)
+        .map_err(|e| e.to_string())?;
     drop(s);
     let _ = app.emit("device_unpaired", &device_id);
     Ok(())
@@ -230,13 +279,24 @@ fn rename_device(
     name: String,
 ) -> Result<(), String> {
     let trimmed = name.trim().to_string();
-    if trimmed.is_empty() { return Err("Name cannot be empty.".into()); }
+    if trimmed.is_empty() {
+        return Err("Name cannot be empty.".into());
+    }
     {
-        let mut s = state.server.settings.lock().map_err(|_| "settings unavailable")?;
-        if let Some(d) = s.paired_devices.iter_mut().find(|d| d.device_id == device_id) {
+        let mut s = state
+            .server
+            .settings
+            .lock()
+            .map_err(|_| "settings unavailable")?;
+        if let Some(d) = s
+            .paired_devices
+            .iter_mut()
+            .find(|d| d.device_id == device_id)
+        {
             d.device_name = trimmed;
         }
-        s.save(&state.server.settings_dir).map_err(|e| e.to_string())?;
+        s.save(&state.server.settings_dir)
+            .map_err(|e| e.to_string())?;
     }
     let _ = app.emit("settings_changed", ());
     Ok(())
@@ -265,7 +325,9 @@ fn uuid_v4() -> String {
 }
 
 fn toggle_overlay(app: &tauri::AppHandle) {
-    let Some(window) = app.get_webview_window(OVERLAY) else { return; };
+    let Some(window) = app.get_webview_window(OVERLAY) else {
+        return;
+    };
     if window.is_visible().unwrap_or(false) {
         let _ = window.hide();
     } else {
@@ -287,7 +349,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![])))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -320,11 +385,7 @@ pub fn run() {
 
             // mDNS advertisement — phones discover this PC by service name,
             // so reconnection works even after the IP changes.
-            let mdns = discovery::advertise(
-                &server.device_id,
-                &server.device_name(),
-                DEFAULT_PORT,
-            );
+            let mdns = discovery::advertise(&server.device_id, &server.device_name(), DEFAULT_PORT);
             if mdns.is_none() {
                 eprintln!("ClipLink: mDNS advertisement unavailable — phones will use stored IP.");
             }
@@ -334,33 +395,43 @@ pub fn run() {
             let inbound_state = Arc::clone(&server);
             let inbound_suppressor = suppressor.clone();
             let paired_handle = app.handle().clone();
-            server::start(Arc::clone(&server), move |clip: InboundClip| {
-                if let Err(e) = clipboard::apply_text(&clip.text, &inbound_suppressor) {
-                    eprintln!("ClipLink: {e}");
-                    return;
-                }
+            server::start(
+                Arc::clone(&server),
+                move |clip: InboundClip| {
+                    if let Err(e) = clipboard::apply_text(&clip.text, &inbound_suppressor) {
+                        eprintln!("ClipLink: {e}");
+                        return;
+                    }
 
-                let device_name = inbound_state
-                    .settings.lock().ok()
-                    .and_then(|s| s.paired_devices.iter().find(|d| d.device_id == clip.origin)
-                        .map(|d| d.device_name.clone()))
-                    .unwrap_or_else(|| "Android phone".into());
+                    let device_name = inbound_state
+                        .settings
+                        .lock()
+                        .ok()
+                        .and_then(|s| {
+                            s.paired_devices
+                                .iter()
+                                .find(|d| d.device_id == clip.origin)
+                                .map(|d| d.device_name.clone())
+                        })
+                        .unwrap_or_else(|| "Android phone".into());
 
-                let entry = ClipEntry {
-                    id: uuid_v4(),
-                    text: clip.text,
-                    origin: clip.origin,
-                    device_name,
-                    received_at: now(),
-                };
+                    let entry = ClipEntry {
+                        id: uuid_v4(),
+                        text: clip.text,
+                        origin: clip.origin,
+                        device_name,
+                        received_at: now(),
+                    };
 
-                if let Some(state) = handle.try_state::<App>() {
-                    state.record(entry.clone());
-                }
-                let _ = handle.emit("clip", entry);
-            }, move |device: settings::PairedDevice| {
-                let _ = paired_handle.emit("device_paired", device);
-            });
+                    if let Some(state) = handle.try_state::<App>() {
+                        state.record(entry.clone());
+                    }
+                    let _ = handle.emit("clip", entry);
+                },
+                move |device: settings::PairedDevice| {
+                    let _ = paired_handle.emit("device_paired", device);
+                },
+            );
 
             // Outbound: this PC copied something.
             let handle = app.handle().clone();
@@ -428,7 +499,8 @@ pub fn run() {
                         button: tauri::tray::MouseButton::Left,
                         button_state: tauri::tray::MouseButtonState::Up,
                         ..
-                    } = event {
+                    } = event
+                    {
                         toggle_overlay(tray.app_handle());
                     }
                 })

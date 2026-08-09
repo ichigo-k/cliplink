@@ -46,6 +46,5 @@ pub fn advertise(device_id: &str, device_name: &str, port: u16) -> Option<Servic
 }
 
 fn hostname_or_fallback() -> String {
-    std::env::var("COMPUTERNAME")
-        .unwrap_or_else(|_| "cliplink-pc".to_string())
+    std::env::var("COMPUTERNAME").unwrap_or_else(|_| "cliplink-pc".to_string())
 }

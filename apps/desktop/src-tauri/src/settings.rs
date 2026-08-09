@@ -93,7 +93,11 @@ impl Settings {
     }
 
     pub fn update_last_seen(&mut self, device_id: &str, host: &str, now: u64) {
-        if let Some(d) = self.paired_devices.iter_mut().find(|d| d.device_id == device_id) {
+        if let Some(d) = self
+            .paired_devices
+            .iter_mut()
+            .find(|d| d.device_id == device_id)
+        {
             d.last_host = Some(host.to_string());
             d.last_seen = Some(now);
         }
