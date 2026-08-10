@@ -8,11 +8,13 @@ import {
   Keyboard,
   Laptop,
   Pencil,
+  Plus,
   Power,
   RefreshCw,
   Settings,
   Smartphone,
   Trash2,
+  Unlink,
   Wifi,
   ZapOff,
 } from 'lucide-react';
@@ -40,6 +42,11 @@ const TABS = [
 ] as const;
 
 type PairingPhase = 'idle' | 'scanning' | 'connecting' | 'done';
+
+/** A device counts as online if the backend heard from it in the last two minutes. */
+function isOnline(d: PairedDevice, now: number): boolean {
+  return typeof d.lastSeen === 'number' && now - d.lastSeen < 120;
+}
 
 function accelerator(e: React.KeyboardEvent): string | null {
   const mods: string[] = [];
@@ -76,6 +83,7 @@ export default function App() {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [confirmUnpair, setConfirmUnpair] = useState<string | null>(null);
 
   // Pairing flow state
   const [pairingPhase, setPairingPhase] = useState<PairingPhase>('idle');
@@ -219,9 +227,15 @@ export default function App() {
     } catch { /* silently ignore */ }
   }
 
+  function startRename(d: PairedDevice) {
+    setConfirmUnpair(null);
+    setRenamingId(d.deviceId);
+    setRenameValue(d.deviceName);
+  }
+
   async function doRenameDevice(deviceId: string) {
     const trimmed = renameValue.trim();
-    if (!trimmed) return;
+    if (!trimmed) { setRenamingId(null); return; }
     try {
       await invoke('rename_device', { deviceId, name: trimmed });
       setRenamingId(null);
@@ -357,32 +371,112 @@ export default function App() {
           {/* ════ DEVICES TAB — device list ════ */}
           {tab === 'devices' && !showPairingModal && !!settings?.pairedDevices.length && (
             <section className="page">
-              <header className="page-head">
-                <h1>Devices</h1>
-              </header>
-              <ul className="device-list">
-                {settings.pairedDevices.map(d => (
-                  <li key={d.deviceId} className="device-card">
-                    <div className="device-icon">
-                      <Smartphone size={20} />
-                    </div>
-                    <div className="device-info">
-                      <strong>{d.deviceName}</strong>
-                      <span>Paired {timeAgo(d.pairedAt)} ago</span>
-                    </div>
-                    <div className="device-badge on">
-                      <i />
-                      Connected
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              <div className="device-connect-row">
+              <header className="page-head page-head-row">
+                <div>
+                  <h1>Devices</h1>
+                  <p>
+                    {settings.pairedDevices.length} paired ·{' '}
+                    {settings.pairedDevices.filter(d => isOnline(d, now)).length} online
+                  </p>
+                </div>
                 <button className="btn btn-primary" onClick={openPairingScreen}>
-                  <Smartphone size={14} />
-                  Connect another device
+                  <Plus size={14} />
+                  Pair device
                 </button>
-              </div>
+              </header>
+
+              <ul className="dev-list">
+                {settings.pairedDevices.map(d => {
+                  const online = isOnline(d, now);
+                  const renaming = renamingId === d.deviceId;
+                  const confirming = confirmUnpair === d.deviceId;
+
+                  return (
+                    <li key={d.deviceId} className={`dev-row ${online ? 'online' : ''}`}>
+                      <span className="dev-dot" title={online ? 'Online' : 'Offline'} />
+
+                      <span className="dev-glyph">
+                        <Smartphone size={17} />
+                      </span>
+
+                      <div className="dev-main">
+                        {renaming ? (
+                          <input
+                            className="dev-rename"
+                            value={renameValue}
+                            autoFocus
+                            maxLength={40}
+                            aria-label="Device name"
+                            onChange={e => setRenameValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') doRenameDevice(d.deviceId);
+                              if (e.key === 'Escape') setRenamingId(null);
+                            }}
+                            onBlur={() => doRenameDevice(d.deviceId)}
+                          />
+                        ) : (
+                          <button
+                            className="dev-name"
+                            title="Double-click to rename"
+                            onDoubleClick={() => startRename(d)}
+                          >
+                            {d.deviceName}
+                          </button>
+                        )}
+
+                        <span className="dev-meta">
+                          <em className={online ? 'is-on' : ''}>
+                            {online ? 'Online' : d.lastSeen ? `Last seen ${timeAgo(d.lastSeen)} ago` : 'Never connected'}
+                          </em>
+                          <i>·</i>
+                          <span className="mono">{d.lastHost ?? 'address unknown'}</span>
+                          <i>·</i>
+                          paired {timeAgo(d.pairedAt)} ago
+                        </span>
+                      </div>
+
+                      {confirming ? (
+                        <div className="dev-confirm">
+                          <span>Disconnect?</span>
+                          <button
+                            className="btn btn-danger"
+                            onClick={() => { doUnpairDevice(d.deviceId); setConfirmUnpair(null); }}
+                          >
+                            Disconnect
+                          </button>
+                          <button className="btn" onClick={() => setConfirmUnpair(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="dev-actions">
+                          <button
+                            className="icon-btn"
+                            onClick={() => startRename(d)}
+                            title="Rename device"
+                            aria-label={`Rename ${d.deviceName}`}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            className="icon-btn danger"
+                            onClick={() => setConfirmUnpair(d.deviceId)}
+                            title="Disconnect device"
+                            aria-label={`Disconnect ${d.deviceName}`}
+                          >
+                            <Unlink size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <p className="dev-hint">
+                Double-click a name to rename it. Disconnecting forgets the device&apos;s key —
+                you&apos;ll need to scan a new code to pair it again.
+              </p>
             </section>
           )}
 
@@ -556,63 +650,24 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Paired devices — rename / unpair */}
+              {/* Devices are managed on the Devices page, not buried in here. */}
               {!!settings?.pairedDevices.length && (
-                <div className="panel">
-                  <h2 className="setting-label" style={{ marginBottom: 10 }}>
-                    <Smartphone size={14} />
-                    Paired devices
-                  </h2>
-                  <ul className="rows" style={{ margin: 0 }}>
-                    {settings.pairedDevices.map(d => (
-                      <li key={d.deviceId}>
-                        <Smartphone size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {renamingId === d.deviceId ? (
-                            <input
-                              className="rename-input"
-                              value={renameValue}
-                              autoFocus
-                              onChange={e => setRenameValue(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') doRenameDevice(d.deviceId);
-                                if (e.key === 'Escape') setRenamingId(null);
-                              }}
-                              onBlur={() => setRenamingId(null)}
-                            />
-                          ) : (
-                            <>
-                              <strong>{d.deviceName}</strong>
-                              <span className="muted" style={{ fontSize: 11, display: 'block' }}>
-                                {d.lastSeen ? `Last seen ${timeAgo(d.lastSeen)} ago` : `Paired ${timeAgo(d.pairedAt)} ago`}
-                                {d.lastHost && <> · {d.lastHost}</>}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          {renamingId !== d.deviceId && (
-                            <button
-                              className="btn"
-                              style={{ padding: '4px 10px' }}
-                              onClick={() => { setRenamingId(d.deviceId); setRenameValue(d.deviceName); }}
-                              title="Rename"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                          )}
-                          <button
-                            className="btn"
-                            style={{ padding: '4px 10px', color: 'var(--red)' }}
-                            onClick={() => doUnpairDevice(d.deviceId)}
-                            title="Unpair"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="panel setting">
+                  <div>
+                    <h2 className="setting-label">
+                      <Smartphone size={14} />
+                      Paired devices
+                    </h2>
+                    <p className="muted" style={{ fontSize: 13 }}>
+                      {settings.pairedDevices.length} device
+                      {settings.pairedDevices.length === 1 ? '' : 's'} · rename or disconnect them
+                      on the Devices page.
+                    </p>
+                  </div>
+                  <button className="btn" onClick={() => setTab('devices')}>
+                    <Smartphone size={13} />
+                    Open Devices
+                  </button>
                 </div>
               )}
             </section>

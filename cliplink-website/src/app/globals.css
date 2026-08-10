@@ -1,0 +1,264 @@
+@import "tailwindcss";
+
+/* --------------------------------------------------------------------------
+   ClipLink design tokens
+   One accent (signal green), one neutral ramp, hairlines instead of borders.
+   -------------------------------------------------------------------------- */
+
+@theme {
+  --font-display: var(--font-inter-tight), sans-serif;
+  --font-sans: var(--font-inter), sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  /* Signal green — the only accent on the site */
+  --color-signal-50: #e6fff3;
+  --color-signal-100: #c2ffe3;
+  --color-signal-200: #86ffc8;
+  --color-signal-300: #46fbaa;
+  --color-signal-400: #14ef8e;
+  --color-signal-500: #00d97c;
+  --color-signal-600: #00b165;
+  --color-signal-700: #018a51;
+  --color-signal-800: #076a41;
+  --color-signal-900: #0a4a2f;
+  --color-signal-950: #03291a;
+
+  /* Neutrals — slightly green-shifted so the accent feels native, not pasted on */
+  --color-ink-50: #f4f6f5;
+  --color-ink-100: #e3e7e5;
+  --color-ink-200: #c3cac7;
+  --color-ink-300: #99a3a0;
+  --color-ink-400: #6d7876;
+  --color-ink-500: #4d5755;
+  --color-ink-600: #3a4341;
+  --color-ink-700: #2a3231;
+  --color-ink-800: #1c2322;
+  --color-ink-900: #121716;
+  --color-ink-950: #0a0e0d;
+
+  --color-canvas: #070a09;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  color-scheme: dark;
+  --hairline: color-mix(in oklab, var(--color-ink-100) 9%, transparent);
+  --hairline-strong: color-mix(in oklab, var(--color-ink-100) 16%, transparent);
+}
+
+html,
+body {
+  background-color: var(--color-canvas);
+  scroll-behavior: smooth;
+  /* `clip` rather than `hidden`: it stops sideways overhang without turning the
+     element into a scroll container, which would break position:sticky inside. */
+  overflow-x: clip;
+}
+
+@layer base {
+  body {
+    @apply font-sans text-ink-300 min-h-screen antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  ::selection {
+    background: var(--color-signal-500);
+    color: #041109;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-signal-500);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Paper sections
+   A light band that breaks up the dark page. It works by re-pointing the same
+   theme variables the utilities already read, so `text-ink-50` means "loudest
+   text" in both modes and no component needs light-mode branches.
+   -------------------------------------------------------------------------- */
+
+.paper {
+  --color-ink-50: #0b100f;
+  --color-ink-100: #151b1a;
+  --color-ink-200: #2a3231;
+  --color-ink-300: #3d4644;
+  --color-ink-400: #59635f;
+  --color-ink-500: #737d7a;
+  --color-ink-600: #78827e;
+  --color-ink-700: #99a29e;
+  --color-ink-800: #dde2e0;
+  --color-ink-900: #e8ece9;
+  /* cards sit as pure white panels above a faintly tinted page */
+  --color-ink-950: #ffffff;
+  --color-canvas: #f3f6f3;
+
+  /* the accent has to darken or it disappears against white; signal-500 is a
+     button fill carrying white text, so it needs to clear 4.5:1 on its own */
+  --color-signal-300: #0a6b42;
+  --color-signal-400: #01774a;
+  --color-signal-500: #00744a;
+  --color-signal-600: #00713f;
+  --color-signal-900: #cbeedc;
+  --color-signal-950: #e8f7ef;
+
+  --hairline: rgba(11, 16, 15, 0.13);
+  --hairline-strong: rgba(11, 16, 15, 0.24);
+
+  background-color: var(--color-canvas);
+  color: var(--color-ink-300);
+}
+
+/* grain is tuned for dark panels; on paper it just looks dirty */
+.paper .grain::after {
+  display: none;
+}
+
+/* Scrollbar ---------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-ink-800);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-700);
+  background-clip: padding-box;
+}
+
+/* --------------------------------------------------------------------------
+   Utilities
+   -------------------------------------------------------------------------- */
+
+@utility shell {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  @media (min-width: 1024px) {
+    padding-inline: 2.5rem;
+  }
+}
+
+/* Uppercase monospace eyebrow used to label every section */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Hairline rules — the site is built out of these instead of card borders */
+@utility hairline {
+  border-color: var(--hairline);
+}
+@utility hairline-strong {
+  border-color: var(--hairline-strong);
+}
+
+/* Engineering grid backdrop */
+@utility blueprint {
+  background-image: linear-gradient(
+      to right,
+      color-mix(in oklab, var(--color-ink-100) 4%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-ink-100) 4%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 72px 72px;
+}
+
+/* Faint film grain so flat panels don't read as plastic */
+@utility grain {
+  position: relative;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+@utility text-balance-tight {
+  text-wrap: balance;
+}
+
+/* --------------------------------------------------------------------------
+   Motion
+   -------------------------------------------------------------------------- */
+
+@keyframes cl-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes cl-scanline {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(400%);
+  }
+}
+
+@keyframes cl-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  95% {
+    opacity: 0.15;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-marquee {
+  animation: cl-marquee 38s linear infinite;
+}
+.animate-scanline {
+  animation: cl-scanline 5.5s linear infinite;
+}
+.animate-blink {
+  animation: cl-blink 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body {
+    scroll-behavior: auto;
+  }
+  .animate-marquee,
+  .animate-scanline,
+  .animate-blink {
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}

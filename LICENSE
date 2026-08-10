@@ -1,21 +1,147 @@
-MIT License
+ClipLink Community License
+Version 1.0
 
 Copyright (c) 2026 ClipLink contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This is a source-available license, not an open-source license as defined by
+the Open Source Initiative. It is free for everyone who is not making money
+with the Software, and asks those who are to help fund the work.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+------------------------------------------------------------------------------
+1. DEFINITIONS
+------------------------------------------------------------------------------
+
+"Software" means the ClipLink source code, binaries, documentation, and assets
+distributed under this License, including any modified versions.
+
+"You" means the individual or legal entity exercising rights under this
+License.
+
+"Repository" means the canonical ClipLink source repository at
+https://github.com/ichigo-k/cliplink.
+
+"Commercial Use" means any use of the Software, in whole or in part, that
+directly or indirectly generates revenue. This includes, without limitation:
+
+  (a) selling, licensing, renting, or leasing the Software or any derivative
+      of it;
+  (b) bundling or embedding the Software in a product or service that is sold,
+      licensed, or offered on a paid or freemium basis;
+  (c) offering the Software, or a service built on it, as a hosted or managed
+      product;
+  (d) using the Software as part of a paid consulting, support, or integration
+      offering.
+
+Internal use by a for-profit organisation — employees using ClipLink to move
+their own clipboard between their own devices — is NOT Commercial Use.
+
+"Non-Commercial Use" means any use that is not Commercial Use. This includes
+personal use, education, academic research, registered non-profit use, and
+unpaid hobby or community projects.
+
+"Gross Revenue" means all revenue You receive that is attributable to a
+product or service falling under Commercial Use, before costs and deductions.
+
+------------------------------------------------------------------------------
+2. GRANT FOR NON-COMMERCIAL USE
+------------------------------------------------------------------------------
+
+Subject to Section 4, You are granted a worldwide, royalty-free,
+non-exclusive licence to use, copy, modify, merge, publish, distribute, and
+create derivative works of the Software for Non-Commercial Use, at no charge.
+
+You may fork the Repository, open pull requests, publish your modifications,
+and redistribute the Software under these same terms.
+
+------------------------------------------------------------------------------
+3. COMMERCIAL USE REQUIRES A PAID LICENCE
+------------------------------------------------------------------------------
+
+Commercial Use is not permitted under Section 2. To make Commercial Use of the
+Software, You must obtain a commercial licence, which is granted on either of
+the following terms, at Your choice:
+
+  (a) REVENUE SHARE. You pay five percent (5%) of Gross Revenue to the
+      ClipLink project, calculated per calendar quarter and paid within
+      thirty (30) days of the end of that quarter; or
+
+  (b) NEGOTIATED LICENCE. You agree separate terms in writing with the
+      copyright holders — a flat fee, a per-seat fee, or any other arrangement
+      both parties accept.
+
+SMALL-SCALE EXEMPTION. If Your total Gross Revenue attributable to the
+Software is less than one thousand United States dollars (US$1,000) in any
+rolling twelve-month period, no payment is due for that period. You still owe
+the obligations in Section 4. This exemption exists so that side projects,
+early-stage products, and small experiments are not blocked by paperwork.
+
+To arrange a commercial licence, or to report revenue under (a), open an issue
+titled "Commercial licence" at https://github.com/ichigo-k/cliplink/issues, or
+contact the maintainers through the Repository.
+
+------------------------------------------------------------------------------
+4. CONDITIONS ON ALL USE
+------------------------------------------------------------------------------
+
+Every grant in this License is conditional on all of the following.
+
+4.1 ATTRIBUTION. You must retain this License file, the copyright notice, and
+    all author and licence notices in every copy or substantial portion of the
+    Software that You distribute.
+
+4.2 STATE CHANGES. If You distribute a modified version, You must clearly mark
+    it as modified and must not present it as the official ClipLink release.
+
+4.3 STAR THE REPOSITORY. If You fork or clone the Repository and You hold a
+    GitHub account, You must star the Repository. Starring is the only thing
+    this project asks in return from people who take the code. If You do not
+    hold a GitHub account, this condition does not apply to You.
+
+4.4 NO RELICENSING. You may not sublicense the Software under different terms,
+    and You may not remove or weaken the restrictions in Section 3 for
+    downstream recipients.
+
+4.5 NO TRADEMARK LICENCE. This License grants no rights in the "ClipLink"
+    name, logo, or branding. A modified or redistributed version must not use
+    them in a way that suggests it is the official project.
+
+------------------------------------------------------------------------------
+5. CONTRIBUTIONS
+------------------------------------------------------------------------------
+
+Contributions submitted to the Repository are licensed to the project and to
+all recipients under the terms of this License. You retain copyright in Your
+contribution. By submitting a contribution You confirm You have the right to
+license it on these terms.
+
+------------------------------------------------------------------------------
+6. TERMINATION
+------------------------------------------------------------------------------
+
+This License terminates automatically if You breach it. If the breach is
+curable — including unpaid amounts under Section 3 or a missing star under
+Section 4.3 — Your rights are reinstated once You cure the breach within
+thirty (30) days of becoming aware of it. Sections 5, 7, and 8 survive
+termination.
+
+------------------------------------------------------------------------------
+7. NO WARRANTY
+------------------------------------------------------------------------------
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+------------------------------------------------------------------------------
+8. LIMITATION OF LIABILITY
+------------------------------------------------------------------------------
+
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+OR OTHER DEALINGS IN THE SOFTWARE.
+
+------------------------------------------------------------------------------
+
+In short: free forever if you are not charging for it. If you are, send some
+of it back. Either way, star the repo.
