@@ -2,6 +2,7 @@ export const SITE = {
   repo: "https://github.com/ichigo-k/cliplink",
   issues: "https://github.com/ichigo-k/cliplink/issues",
   releases: "https://github.com/ichigo-k/cliplink/releases/latest",
+  contribution: "/contribution",
   version: "v0.1.18",
 } as const;
 

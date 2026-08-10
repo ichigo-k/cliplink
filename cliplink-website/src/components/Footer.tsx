@@ -14,6 +14,7 @@ if (typeof window !== "undefined") {
 const RESOURCES = [
   { label: "Releases", href: SITE.releases },
   { label: "Issues", href: SITE.issues },
+  { label: "Contributing", href: SITE.contribution },
   { label: "Protocol docs", href: `${SITE.repo}/tree/main/docs` },
   { label: "License", href: `${SITE.repo}/blob/main/LICENSE` },
 ];
@@ -149,8 +150,8 @@ export default function Footer() {
                 <li key={r.label}>
                   <a
                     href={r.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    target={r.href.startsWith("http") ? "_blank" : undefined}
+                    rel={r.href.startsWith("http") ? "noopener noreferrer" : undefined}
                     className="group inline-flex items-center gap-1.5 text-[13.5px] text-ink-400 transition-colors hover:text-signal-400"
                   >
                     {r.label}

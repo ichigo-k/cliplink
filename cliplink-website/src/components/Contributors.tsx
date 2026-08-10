@@ -66,9 +66,7 @@ export default function Contributors() {
           blurb="Pulled live from the repo. Ship a fix and you're on this list."
           aside={
             <a
-              href={`${SITE.repo}/blob/main/README.md`}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={SITE.contribution}
               className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-signal-400 hover:text-signal-300"
             >
               Contributing guide
@@ -80,52 +78,52 @@ export default function Contributors() {
         <div className="mt-10 border-t hairline sm:mt-14">
           {loading
             ? Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-5 border-b hairline py-5">
-                  <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-ink-900" />
-                  <span className="h-3 w-36 animate-pulse rounded bg-ink-900" />
-                  <span className="ml-auto h-3 w-16 animate-pulse rounded bg-ink-900" />
-                </div>
-              ))
+              <div key={i} className="flex items-center gap-5 border-b hairline py-5">
+                <span className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-ink-900" />
+                <span className="h-3 w-36 animate-pulse rounded bg-ink-900" />
+                <span className="ml-auto h-3 w-16 animate-pulse rounded bg-ink-900" />
+              </div>
+            ))
             : people.map((p, i) => (
-                <a
-                  key={p.id ?? p.login}
-                  href={p.html_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex items-center gap-4 border-b hairline py-5 transition-colors hover:bg-ink-900/50 sm:gap-6"
-                >
-                  <span className="eyebrow w-6 shrink-0 text-ink-600">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
+              <a
+                key={p.id ?? p.login}
+                href={p.html_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center gap-4 border-b hairline py-5 transition-colors hover:bg-ink-900/50 sm:gap-6"
+              >
+                <span className="eyebrow w-6 shrink-0 text-ink-600">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
 
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.avatar_url}
-                    alt=""
-                    loading="lazy"
-                    className="h-10 w-10 shrink-0 rounded-full border hairline grayscale transition-all duration-300 group-hover:grayscale-0 group-hover:border-signal-500/50"
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.avatar_url}
+                  alt=""
+                  loading="lazy"
+                  className="h-10 w-10 shrink-0 rounded-full border hairline grayscale transition-all duration-300 group-hover:grayscale-0 group-hover:border-signal-500/50"
+                />
+
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-display text-[16px] font-medium tracking-[-0.02em] text-ink-100 transition-colors group-hover:text-signal-300">
+                    {p.login}
+                  </span>
+                  <span className="mt-1 block font-mono text-[11px] text-ink-500">
+                    {p.contributions} commit{p.contributions === 1 ? "" : "s"}
+                  </span>
+                </span>
+
+                {/* contribution bar */}
+                <span className="hidden h-1 w-40 overflow-hidden rounded-full bg-ink-900 sm:block">
+                  <span
+                    className="block h-full rounded-full bg-signal-500/70"
+                    style={{ width: `${Math.max(6, (p.contributions / top) * 100)}%` }}
                   />
+                </span>
 
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-display text-[16px] font-medium tracking-[-0.02em] text-ink-100 transition-colors group-hover:text-signal-300">
-                      {p.login}
-                    </span>
-                    <span className="mt-1 block font-mono text-[11px] text-ink-500">
-                      {p.contributions} commit{p.contributions === 1 ? "" : "s"}
-                    </span>
-                  </span>
-
-                  {/* contribution bar */}
-                  <span className="hidden h-1 w-40 overflow-hidden rounded-full bg-ink-900 sm:block">
-                    <span
-                      className="block h-full rounded-full bg-signal-500/70"
-                      style={{ width: `${Math.max(6, (p.contributions / top) * 100)}%` }}
-                    />
-                  </span>
-
-                  <ArrowUpRight className="h-4 w-4 shrink-0 text-ink-600 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-signal-400" />
-                </a>
-              ))}
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-ink-600 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-signal-400" />
+              </a>
+            ))}
 
           <a
             href={SITE.issues}
