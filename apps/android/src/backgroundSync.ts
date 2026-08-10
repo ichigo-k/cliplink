@@ -32,6 +32,7 @@ const OPTIONS = {
   taskIcon: { name: 'ic_launcher', type: 'mipmap' },
   color: '#22C55E',
   linkingURI: 'cliplink://',
+  foregroundServiceType: ['dataSync'],
   parameters: {},
 } as const;
 
