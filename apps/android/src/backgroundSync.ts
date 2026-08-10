@@ -32,9 +32,9 @@ const OPTIONS = {
   taskIcon: { name: 'ic_launcher', type: 'mipmap' },
   color: '#22C55E',
   linkingURI: 'cliplink://',
-  foregroundServiceType: ['dataSync'],
+  foregroundServiceType: ['dataSync'] as Array<'dataSync'>,
   parameters: {},
-} as const;
+};
 
 export async function startBackgroundSync(): Promise<void> {
   if (BackgroundActions.isRunning()) return;
