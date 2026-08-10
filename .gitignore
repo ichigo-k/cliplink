@@ -21,6 +21,9 @@ obj/
 apps/android/android/
 apps/android/ios/
 
+# Local Expo dev-server state (paired devices, packager cache)
+apps/android/.expo/
+
 # Editor / OS
 .vscode/
 .idea/

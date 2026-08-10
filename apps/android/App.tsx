@@ -4,8 +4,8 @@ import 'react-native-get-random-values';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   AppState,
+  BackHandler,
   type AppStateStatus,
   Image,
   NativeEventEmitter,
@@ -30,35 +30,13 @@ import {
   stopBackgroundSync,
   updateBackgroundStatus,
 } from './src/backgroundSync';
-import {
-  checkForUpdate,
-  currentVersion,
-  downloadAndInstall,
-  notifyUpdateAvailable,
-  type AvailableUpdate,
-} from './src/updater';
+import { SettingsScreen } from './src/SettingsScreen';
+import { useUpdater, type Updater } from './src/useUpdater';
+import { C } from './src/theme';
 
 const IDENTITY_KEY = 'cliplink.identity';
 const OFFER_KEY = 'cliplink.offer';
 const LAST_HOST_KEY = 'cliplink.lastHost';
-
-const C = {
-  void: '#111111',
-  layer: '#1a1a1a',
-  card: '#1e1e1e',
-  cardAlt: '#242424',
-  input: '#161616',
-  edge: 'rgba(255,255,255,0.06)',
-  edgeBright: 'rgba(255,255,255,0.11)',
-  text: '#f2f2f2',
-  muted: '#888888',
-  faint: '#444444',
-  accent: '#22C55E',
-  accentLt: '#4ADE80',
-  green: '#4ADE80',
-  greenBg: 'rgba(74,222,128,0.10)',
-  danger: '#FF6B6B',
-};
 
 type Toast = { message: string; type: 'success' | 'error' | 'info' };
 
@@ -72,18 +50,18 @@ export default function App({ sharedText }: { sharedText?: string }) {
   const [scanning, setScanning] = useState(false);
   const [received, setReceived] = useState<ReceivedClip[]>([]);
   const [notice, setNotice] = useState('');
-  const [update, setUpdate] = useState<AvailableUpdate | null>(null);
-  const [updateDl, setUpdateDl] = useState(false); // downloading silently
-  const [updateReady, setUpdateReady] = useState(false); // ready to install
+  const [showSettings, setShowSettings] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [toast, setToast] = useState<Toast | null>(null);
   const [manualSent, setManualSent] = useState(false);
+  const [confirmUnpair, setConfirmUnpair] = useState(false);
+
+  const updater = useUpdater();
 
   const client = useRef<SyncClient | null>(null);
   const handledScan = useRef(false);
   const lastSentRef = useRef('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const updateRef = useRef<AvailableUpdate | null>(null);
 
   /* ── Toast ── */
   const showToast = useCallback((message: string, type: Toast['type'] = 'success') => {
@@ -113,30 +91,16 @@ export default function App({ sharedText }: { sharedText?: string }) {
     })();
   }, []);
 
-  /* ── Update: check then auto-download silently in background ── */
+  /* ── Hardware back closes a sub-screen rather than quitting the app ── */
   useEffect(() => {
-    if (__DEV__) return;
-    checkForUpdate().then(async (u) => {
-      if (!u) return;
-      updateRef.current = u;
-      setUpdate(u);
-      // Notify first: this is the only part guaranteed to survive the app
-      // being swiped away before the silent download below finishes.
-      notifyUpdateAvailable(u);
-      // Start downloading silently right away
-      setUpdateDl(true);
-      try {
-        await downloadAndInstall(u, () => { });
-        // downloadAndInstall launches the system installer prompt, so if we
-        // get here the user dismissed it. Mark ready so they can retry.
-        setUpdateReady(true);
-      } catch {
-        // Download failed silently — user can retry via the badge
-      } finally {
-        setUpdateDl(false);
-      }
+    if (!showSettings && !scanning) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setShowSettings(false);
+      setScanning(false);
+      return true; // handled — don't let Android pop the activity
     });
-  }, []);
+    return () => sub.remove();
+  }, [showSettings, scanning]);
 
   /* ── Socket lifecycle ── */
   useEffect(() => {
@@ -288,15 +252,10 @@ export default function App({ sharedText }: { sharedText?: string }) {
     showToast('Copied ✓');
   }, [showToast]);
 
-  const retryInstall = useCallback(async () => {
-    const u = updateRef.current ?? update;
-    if (!u) return;
-    try {
-      await downloadAndInstall(u, () => { });
-    } catch (e) {
-      Alert.alert('Install failed', String(e));
-    }
-  }, [update]);
+  /* ── Settings screen ── */
+  if (showSettings) {
+    return <SettingsScreen updater={updater} onClose={() => setShowSettings(false)} />;
+  }
 
   /* ── Scanner screen ── */
   if (scanning) {
@@ -326,6 +285,7 @@ export default function App({ sharedText }: { sharedText?: string }) {
     status.state === 'connected' ? C.green :
       status.state === 'error' ? C.danger : C.faint;
   const isConnected = status.state === 'connected';
+  const updateBadge = badgeFor(updater.phase);
 
   return (
     <SafeAreaView style={S.safe}>
@@ -354,21 +314,23 @@ export default function App({ sharedText }: { sharedText?: string }) {
             <Text style={S.brand}>ClipLink</Text>
             <Text style={S.tagline}>Clipboard, everywhere.</Text>
           </View>
-          {/* Update badge — appears once update is available */}
-          {!!update && (
+          {/* Update pill — only while there is something newer to act on.
+              Tapping goes to Settings rather than installing straight away, so
+              the version and release notes are visible before committing. */}
+          {!!updateBadge && (
             <Pressable
-              style={[S.updateBadge, updateDl && S.updateBadgeDl]}
-              onPress={retryInstall}
-              disabled={updateDl}
+              style={[S.updateBadge, updateBadge.busy && S.updateBadgeDl]}
+              onPress={() => setShowSettings(true)}
             >
-              {updateDl
+              {updateBadge.busy
                 ? <ActivityIndicator size={12} color="#fff" />
-                : <Text style={S.updateBadgeText}>
-                  {updateReady ? 'Install' : `v${update.version}`}
-                </Text>
-              }
+                : <Text style={S.updateBadgeText}>{updateBadge.label}</Text>}
             </Pressable>
           )}
+
+          <Pressable style={S.gear} onPress={() => setShowSettings(true)} hitSlop={8}>
+            <Text style={S.gearText}>⚙</Text>
+          </Pressable>
         </View>
 
         {/* ── Status hero card ── */}
@@ -409,23 +371,86 @@ export default function App({ sharedText }: { sharedText?: string }) {
               <Text style={S.primaryText}>Scan pairing code</Text>
             </Pressable>
           ) : (
-            <View style={S.heroActions}>
-              {isConnected && (
-                <Pressable
-                  style={[S.actionBtn, manualSent && S.actionBtnDone]}
-                  onPress={sendClipboard}
-                >
-                  <Text style={S.actionBtnText}>
-                    {manualSent ? '✓ Sent' : 'Send clipboard'}
-                  </Text>
-                </Pressable>
-              )}
-              <Pressable style={S.actionBtnGhost} onPress={unpair}>
-                <Text style={S.actionBtnGhostText}>Unpair</Text>
+            isConnected && (
+              <Pressable
+                style={[S.primary, manualSent && S.primaryDone]}
+                onPress={sendClipboard}
+              >
+                <Text style={S.primaryText}>
+                  {manualSent ? '✓ Sent to PC' : 'Send clipboard now'}
+                </Text>
               </Pressable>
-            </View>
+            )
           )}
         </View>
+
+        {/* ── Paired device — managed here, not hidden behind a menu ── */}
+        {!!offer && (
+          <View style={S.section}>
+            <Text style={S.sectionLabel}>Paired device</Text>
+
+            <View style={S.devCard}>
+              <View style={S.devHead}>
+                <View style={[S.devDot, { backgroundColor: dotColor }]} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={S.devName} numberOfLines={1}>{offer.deviceName}</Text>
+                  <Text style={S.devRole}>Windows host</Text>
+                </View>
+                <View style={[S.devPill, isConnected && S.devPillOn]}>
+                  <Text style={[S.devPillText, isConnected && S.devPillTextOn]}>
+                    {statusTitle(status)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={S.devRows}>
+                <View style={S.devRow}>
+                  <Text style={S.devKey}>Address</Text>
+                  <Text style={S.devVal} numberOfLines={1}>
+                    {lastHost ?? offer.host}:{offer.port}
+                  </Text>
+                </View>
+                <View style={S.devRow}>
+                  <Text style={S.devKey}>Clips received</Text>
+                  <Text style={S.devVal}>{received.length}</Text>
+                </View>
+                <View style={[S.devRow, S.devRowLast]}>
+                  <Text style={S.devKey}>Encryption</Text>
+                  <Text style={S.devVal}>XChaCha20-Poly1305</Text>
+                </View>
+              </View>
+
+              {confirmUnpair ? (
+                <View style={S.devConfirm}>
+                  <Text style={S.devConfirmText}>
+                    Disconnect from {offer.deviceName}? You&apos;ll need to scan a new code to
+                    pair again.
+                  </Text>
+                  <View style={S.devBtnRow}>
+                    <Pressable
+                      style={S.devBtnDanger}
+                      onPress={() => { setConfirmUnpair(false); unpair(); }}
+                    >
+                      <Text style={S.devBtnDangerText}>Disconnect</Text>
+                    </Pressable>
+                    <Pressable style={S.devBtn} onPress={() => setConfirmUnpair(false)}>
+                      <Text style={S.devBtnText}>Keep paired</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <View style={S.devBtnRow}>
+                  <Pressable style={S.devBtn} onPress={startScanning}>
+                    <Text style={S.devBtnText}>Re-pair</Text>
+                  </Pressable>
+                  <Pressable style={S.devBtn} onPress={() => setConfirmUnpair(true)}>
+                    <Text style={[S.devBtnText, { color: C.danger }]}>Disconnect</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* ── Received clips from PC ── */}
         {received.length > 0 && (
@@ -453,6 +478,16 @@ export default function App({ sharedText }: { sharedText?: string }) {
 }
 
 /* ── Helpers ── */
+
+/** The header pill, or null when there is no newer version to act on. */
+function badgeFor(phase: Updater['phase']): { label: string; busy: boolean } | null {
+  switch (phase.kind) {
+    case 'available': return { label: `v${phase.update.version}`, busy: false };
+    case 'downloading': return { label: '', busy: true };
+    case 'ready': return { label: 'Install', busy: false };
+    default: return null;
+  }
+}
 
 function statusTitle(status: Status): string {
   switch (status.state) {
@@ -540,6 +575,18 @@ const S = StyleSheet.create({
   updateBadgeDl: { opacity: 0.7 },
   updateBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 
+  /* Settings entry point */
+  gear: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: C.edgeBright,
+  },
+  gearText: { color: C.muted, fontSize: 15, lineHeight: 18 },
+
   /* Hero status card */
   heroCard: {
     backgroundColor: C.card,
@@ -576,36 +623,7 @@ const S = StyleSheet.create({
     lineHeight: 20,
   },
 
-  /* Hero action row */
-  heroActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 2,
-  },
-  actionBtn: {
-    flex: 1,
-    backgroundColor: C.accent,
-    borderRadius: 10,
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
-  actionBtnDone: {
-    backgroundColor: '#153824',
-    borderWidth: 1,
-    borderColor: C.green,
-  },
-  actionBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  actionBtnGhost: {
-    paddingVertical: 11,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.edgeBright,
-    alignItems: 'center',
-  },
-  actionBtnGhostText: { color: C.muted, fontWeight: '600', fontSize: 14 },
-
-  /* Primary button (pairing) */
+  /* Primary button (pairing / send) */
   primary: {
     backgroundColor: C.accent,
     borderRadius: 12,
@@ -614,6 +632,83 @@ const S = StyleSheet.create({
     marginTop: 2,
   },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  primaryDone: {
+    backgroundColor: '#153824',
+    borderWidth: 1,
+    borderColor: C.green,
+  },
+
+  /* Paired-device card — rename/disconnect live here, not in a menu */
+  devCard: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.edge,
+    padding: 16,
+    gap: 14,
+  },
+  devHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  devDot: { width: 8, height: 8, borderRadius: 4 },
+  devName: { color: C.text, fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
+  devRole: { color: C.faint, fontSize: 11.5, marginTop: 1 },
+  devPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: C.cardAlt,
+    borderWidth: 1,
+    borderColor: C.edge,
+  },
+  devPillOn: { backgroundColor: C.greenBg, borderColor: 'rgba(74,222,128,0.3)' },
+  devPillText: { color: C.muted, fontSize: 11, fontWeight: '700' },
+  devPillTextOn: { color: C.green },
+
+  devRows: {
+    backgroundColor: C.input,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.edge,
+  },
+  devRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.edge,
+  },
+  devRowLast: { borderBottomWidth: 0 },
+  devKey: { color: C.muted, fontSize: 12.5 },
+  devVal: { color: C.text, fontSize: 12.5, fontWeight: '600', flexShrink: 1 },
+
+  devBtnRow: { flexDirection: 'row', gap: 8 },
+  devBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.edgeBright,
+    alignItems: 'center',
+  },
+  devBtnText: { color: C.text, fontSize: 13.5, fontWeight: '600' },
+  devBtnDanger: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,107,107,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,107,107,0.35)',
+    alignItems: 'center',
+  },
+  devBtnDangerText: { color: '#ff8f8f', fontSize: 13.5, fontWeight: '700' },
+  devConfirm: { gap: 12 },
+  devConfirmText: { color: C.muted, fontSize: 12.5, lineHeight: 18 },
 
   /* Ghost button */
   ghost: {
