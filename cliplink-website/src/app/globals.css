@@ -33,10 +33,10 @@
   --color-ink-600: #3a4341;
   --color-ink-700: #2a3231;
   --color-ink-800: #1c2322;
-  --color-ink-900: #121716;
-  --color-ink-950: #0a0e0d;
+  --color-ink-900: #1a211f;
+  --color-ink-950: #121817;
 
-  --color-canvas: #070a09;
+  --color-canvas: #101615;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }

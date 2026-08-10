@@ -48,9 +48,10 @@ export default function Footer() {
       // scrubbed so it tracks the scroll rather than firing once.
       gsap.fromTo(
         ".ft-mark span",
-        { yPercent: 105 },
+        { yPercent: 105, opacity: 0 },
         {
           yPercent: 0,
+          opacity: 1,
           ease: "none",
           stagger: 0.04,
           scrollTrigger: {
@@ -71,8 +72,8 @@ export default function Footer() {
       {/* ── closing call to action ── */}
       <div className="shell">
         <div className="ft-cta relative mx-auto mt-4 mb-16 overflow-hidden rounded-2xl border hairline bg-ink-950 px-6 py-12 text-center sm:px-12 sm:py-16">
-          <span className="pointer-events-none absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-signal-500/[0.12] blur-[100px]" />
-          <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-signal-500/50 to-transparent" />
+          <span className="pointer-events-none absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-signal-500/12 blur-[100px]" />
+          <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-signal-500/50 to-transparent" />
 
           <p className="eyebrow relative text-signal-400">Ready when you are</p>
           <h2 className="relative mx-auto mt-5 max-w-2xl font-display text-[clamp(1.7rem,6vw,2.6rem)] font-semibold leading-[1.05] tracking-[-0.035em] text-ink-50">
@@ -181,7 +182,7 @@ export default function Footer() {
 
       {/* ── oversized sign-off ── */}
       <div className="ft-mark shell pointer-events-none select-none" aria-hidden="true">
-        <p className="flex overflow-hidden font-display text-[19vw] font-semibold leading-[0.78] tracking-[-0.06em] text-ink-100/[0.045] lg:text-[13.5rem]">
+        <p className="flex overflow-hidden font-display text-[19vw] font-semibold leading-[0.78] tracking-[-0.06em] text-ink-100/18 lg:text-[13.5rem]">
           {"ClipLink".split("").map((ch, i) => (
             <span key={i} className="inline-block">
               {ch}
