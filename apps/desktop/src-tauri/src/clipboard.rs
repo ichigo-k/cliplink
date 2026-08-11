@@ -52,6 +52,11 @@ impl EchoSuppressor {
 pub enum ClipboardContent {
     Text(String),
     /// HTML source string (for rich text copies from browsers/Office).
+    ///
+    /// Only ever constructed on Windows, where arboard exposes `get_html()`.
+    /// Everywhere else the variant is still matched but never built, which
+    /// `-D warnings` counts as dead code.
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     Html {
         html: String,
         plain: String,
@@ -68,25 +73,9 @@ impl ClipboardContent {
             ClipboardContent::Image(b) => hash_hex(b),
         }
     }
-
-    pub fn content_type(&self) -> &'static str {
-        match self {
-            ClipboardContent::Text(_) => "text/plain",
-            ClipboardContent::Html { .. } => "text/html",
-            ClipboardContent::Image(_) => "image/png",
-        }
-    }
 }
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
-
-pub fn read_text() -> Option<String> {
-    arboard::Clipboard::new()
-        .ok()?
-        .get_text()
-        .ok()
-        .filter(|t| !t.is_empty())
-}
 
 /// Reads the clipboard and returns whatever is there.
 /// Priority: HTML > plain text > image.

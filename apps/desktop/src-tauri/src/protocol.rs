@@ -8,7 +8,6 @@ pub const DEFAULT_PORT: u16 = 47123;
 pub const MAX_TEXT_PAYLOAD_BYTES: usize = 1024 * 1024;
 pub const MAX_IMAGE_PAYLOAD_BYTES: usize = 5 * 1024 * 1024;
 pub const MAX_FILE_CHUNK_BYTES: usize = 256 * 1024;
-pub const MAX_PAYLOAD_BYTES: usize = MAX_IMAGE_PAYLOAD_BYTES;
 pub const PAIRING_TTL_SECS: u64 = 300;
 
 #[derive(Serialize, Clone)]
@@ -72,8 +71,13 @@ pub enum Inbound {
     Ping,
     FileStart(FileStart),
     FileChunk(FileChunk),
+    // The PC sends these two rather than receiving them, but they still need
+    // variants so an echo does not fall through to `Unknown` and get logged as
+    // a protocol error. The payloads are matched with `_` and never read.
+    #[allow(dead_code)]
     FileAck(FileAck),
     Notification(PhoneNotification),
+    #[allow(dead_code)]
     NotificationDismiss(NotificationDismiss),
     #[serde(other)]
     Unknown,
