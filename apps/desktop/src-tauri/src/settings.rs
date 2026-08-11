@@ -138,7 +138,9 @@ pub struct HistoryStore {
 
 impl HistoryStore {
     pub fn new(dir: &Path) -> Self {
-        Self { path: dir.join("history.json") }
+        Self {
+            path: dir.join("history.json"),
+        }
     }
 
     pub fn load(&self) -> Vec<PersistedEntry> {

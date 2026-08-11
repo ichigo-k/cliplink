@@ -7,9 +7,8 @@
 use crate::{
     crypto::{hash_hex, Identity},
     protocol::{
-        Clip, FileAck, FileChunk, FileStart, HelloAck, Inbound, ProtocolError,
-        DEFAULT_PORT, MAX_FILE_CHUNK_BYTES, MAX_IMAGE_PAYLOAD_BYTES,
-        MAX_TEXT_PAYLOAD_BYTES, PAIRING_TTL_SECS,
+        Clip, FileAck, FileChunk, FileStart, HelloAck, Inbound, ProtocolError, DEFAULT_PORT,
+        MAX_FILE_CHUNK_BYTES, MAX_IMAGE_PAYLOAD_BYTES, MAX_TEXT_PAYLOAD_BYTES, PAIRING_TTL_SECS,
     },
     settings::{PairedDevice, Settings},
 };
@@ -50,7 +49,9 @@ pub enum OutgoingMessage {
     Clip(OutgoingClip),
     File(OutgoingFile),
     /// Dismiss a notification on the phone (sent from the PC).
-    NotificationDismiss { key: String },
+    NotificationDismiss {
+        key: String,
+    },
 }
 
 /// A decrypted clip that arrived from a phone.
@@ -81,7 +82,11 @@ pub struct ServerState {
 }
 
 impl ServerState {
-    pub fn new(settings: Settings, settings_dir: PathBuf, host_resolver: Arc<dyn Fn() -> Vec<String> + Send + Sync>) -> Self {
+    pub fn new(
+        settings: Settings,
+        settings_dir: PathBuf,
+        host_resolver: Arc<dyn Fn() -> Vec<String> + Send + Sync>,
+    ) -> Self {
         let identity = settings.identity();
         let device_id = format!(
             "win-{}",
@@ -147,17 +152,22 @@ impl ServerState {
 }
 
 /// Spawns the accept loop. Returns immediately; the listener runs until exit.
-pub fn start<F, G, H, N>(state: Arc<ServerState>, on_clip: F, on_file: H, on_notification: N, on_paired: G)
-where
+pub fn start<F, G, H, N>(
+    state: Arc<ServerState>,
+    on_clip: F,
+    on_file: H,
+    on_notification: N,
+    on_paired: G,
+) where
     F: Fn(InboundClip) + Send + Sync + 'static,
     G: Fn(PairedDevice) + Send + Sync + 'static,
     H: Fn(InboundFile) + Send + Sync + 'static,
     N: Fn(crate::protocol::PhoneNotification) + Send + Sync + 'static,
 {
-    let on_clip         = Arc::new(on_clip);
-    let on_file         = Arc::new(on_file);
+    let on_clip = Arc::new(on_clip);
+    let on_file = Arc::new(on_file);
     let on_notification = Arc::new(on_notification);
-    let on_paired       = Arc::new(on_paired);
+    let on_paired = Arc::new(on_paired);
 
     std::thread::spawn(move || {
         let runtime = match tokio::runtime::Builder::new_multi_thread()
@@ -225,12 +235,22 @@ async fn serve(
 
     let authorised = state.claim_nonce(&hello.nonce) || state.is_known_device(&hello.public_key);
     if !authorised {
-        let refusal = ProtocolError::new("nonce_expired", "That pairing code expired. Refresh it on your PC.");
-        let _ = write.send(WsMessage::text(serde_json::to_string(&refusal).unwrap_or_default())).await;
+        let refusal = ProtocolError::new(
+            "nonce_expired",
+            "That pairing code expired. Refresh it on your PC.",
+        );
+        let _ = write
+            .send(WsMessage::text(
+                serde_json::to_string(&refusal).unwrap_or_default(),
+            ))
+            .await;
         return Err(format!("rejected pairing attempt from {}", hello.device_id));
     }
 
-    let key = state.identity.session_key(&hello.public_key).map_err(|_| "bad public key")?;
+    let key = state
+        .identity
+        .session_key(&hello.public_key)
+        .map_err(|_| "bad public key")?;
 
     let paired_device = state.remember_device(PairedDevice {
         device_id: hello.device_id.clone(),
@@ -253,8 +273,12 @@ async fn serve(
         public_key: state.identity.public_key_b64(),
         hosts: (state.host_resolver)(),
     };
-    write.send(WsMessage::text(serde_json::to_string(&ack).map_err(|e| e.to_string())?))
-        .await.map_err(|e| e.to_string())?;
+    write
+        .send(WsMessage::text(
+            serde_json::to_string(&ack).map_err(|e| e.to_string())?,
+        ))
+        .await
+        .map_err(|e| e.to_string())?;
 
     let mut outgoing = state.outgoing.subscribe();
 

@@ -8,7 +8,9 @@ mod settings;
 use clipboard::EchoSuppressor;
 use protocol::{PairingOffer, DEFAULT_PORT, PROTOCOL_VERSION};
 use serde::Serialize;
-use server::{now, InboundClip, InboundFile, OutgoingClip, OutgoingFile, OutgoingMessage, ServerState};
+use server::{
+    now, InboundClip, InboundFile, OutgoingClip, OutgoingFile, OutgoingMessage, ServerState,
+};
 use settings::{HistoryStore, Settings};
 use std::{
     net::{IpAddr, Ipv4Addr, UdpSocket},
@@ -93,10 +95,15 @@ impl App {
             .unwrap_or(settings::DEFAULT_HISTORY_LIMIT);
         if let Ok(mut history) = self.history.lock() {
             history.retain(|e| {
-                if e.id == entry.id { return false; }
-                if !entry.text.is_empty() && e.text == entry.text { return false; }
-                if !entry.image_data_url.is_empty()
-                    && e.image_data_url == entry.image_data_url { return false; }
+                if e.id == entry.id {
+                    return false;
+                }
+                if !entry.text.is_empty() && e.text == entry.text {
+                    return false;
+                }
+                if !entry.image_data_url.is_empty() && e.image_data_url == entry.image_data_url {
+                    return false;
+                }
                 true
             });
             let insert_pos = history.iter().position(|e| !e.pinned).unwrap_or(0);
@@ -105,7 +112,9 @@ impl App {
             let max_unpinned = limit.saturating_sub(pinned_count);
             let mut unpinned_seen = 0usize;
             history.retain(|e| {
-                if e.pinned { return true; }
+                if e.pinned {
+                    return true;
+                }
                 unpinned_seen += 1;
                 unpinned_seen <= max_unpinned
             });
@@ -322,9 +331,10 @@ fn open_path(path: String) -> Result<(), String> {
 /// Dismiss a notification on the paired phone (triggered from the PC's UI).
 #[tauri::command]
 fn dismiss_phone_notification(state: State<'_, App>, key: String) -> Result<(), String> {
-    let _ = state.server.outgoing.send(
-        server::OutgoingMessage::NotificationDismiss { key }
-    );
+    let _ = state
+        .server
+        .outgoing
+        .send(server::OutgoingMessage::NotificationDismiss { key });
     Ok(())
 }
 
@@ -333,21 +343,23 @@ fn dismiss_phone_notification(state: State<'_, App>, key: String) -> Result<(), 
 #[tauri::command]
 fn send_file(state: State<'_, App>, path: String) -> Result<(), String> {
     let p = std::path::Path::new(&path);
-    let file_name = p.file_name()
+    let file_name = p
+        .file_name()
         .ok_or("invalid path")?
         .to_string_lossy()
         .to_string();
     let data = std::fs::read(p).map_err(|e| format!("Cannot read file: {e}"))?;
-    let mime_type = mime_guess::from_path(p)
-        .first_or_octet_stream()
-        .to_string();
+    let mime_type = mime_guess::from_path(p).first_or_octet_stream().to_string();
 
-    let _ = state.server.outgoing.send(OutgoingMessage::File(OutgoingFile {
-        transfer_id: uuid_v4(),
-        file_name,
-        data,
-        mime_type,
-    }));
+    let _ = state
+        .server
+        .outgoing
+        .send(OutgoingMessage::File(OutgoingFile {
+            transfer_id: uuid_v4(),
+            file_name,
+            data,
+            mime_type,
+        }));
     Ok(())
 }
 
@@ -416,14 +428,17 @@ fn get_history(app: State<'_, App>) -> Vec<ClipEntry> {
 #[tauri::command]
 fn copy_to_clipboard(app: State<'_, App>, text: String) -> Result<(), String> {
     clipboard::apply_text(&text, &app.suppressor)?;
-    let _ = app.server.outgoing.send(OutgoingMessage::Clip(OutgoingClip {
-        id: uuid_v4(),
-        origin: app.server.device_id.clone(),
-        content_type: "text/plain".into(),
-        text,
-        image_png: None,
-        sent_at: now(),
-    }));
+    let _ = app
+        .server
+        .outgoing
+        .send(OutgoingMessage::Clip(OutgoingClip {
+            id: uuid_v4(),
+            origin: app.server.device_id.clone(),
+            content_type: "text/plain".into(),
+            text,
+            image_png: None,
+            sent_at: now(),
+        }));
     Ok(())
 }
 
@@ -436,14 +451,17 @@ fn paste_from_overlay(
     text: String,
 ) -> Result<(), String> {
     clipboard::apply_text(&text, &state.suppressor)?;
-    let _ = state.server.outgoing.send(OutgoingMessage::Clip(OutgoingClip {
-        id: uuid_v4(),
-        origin: state.server.device_id.clone(),
-        content_type: "text/plain".into(),
-        text,
-        image_png: None,
-        sent_at: now(),
-    }));
+    let _ = state
+        .server
+        .outgoing
+        .send(OutgoingMessage::Clip(OutgoingClip {
+            id: uuid_v4(),
+            origin: state.server.device_id.clone(),
+            content_type: "text/plain".into(),
+            text,
+            image_png: None,
+            sent_at: now(),
+        }));
     if let Some(win) = app_handle.get_webview_window(OVERLAY) {
         let _ = win.hide();
     }
@@ -606,7 +624,11 @@ pub fn run() {
             let launch_at_startup = settings.launch_at_startup;
 
             let suppressor = EchoSuppressor::default();
-            let server = Arc::new(ServerState::new(settings, settings_dir.clone(), Arc::new(candidate_hosts)));
+            let server = Arc::new(ServerState::new(
+                settings,
+                settings_dir.clone(),
+                Arc::new(candidate_hosts),
+            ));
 
             // Load persisted clipboard history from disk
             let history_store = HistoryStore::new(&settings_dir);
@@ -635,7 +657,7 @@ pub fn run() {
                 Arc::clone(&server),
                 move |clip: InboundClip| {
                     let is_image = clip.content_type.starts_with("image/");
-                    let is_html  = clip.content_type == "text/html";
+                    let is_html = clip.content_type == "text/html";
 
                     if is_image {
                         if let Some(ref png) = clip.image_png {
@@ -645,7 +667,9 @@ pub fn run() {
                             }
                         }
                     } else if is_html {
-                        if let Err(e) = clipboard::apply_html(&clip.text, &clip.plain, &inbound_suppressor) {
+                        if let Err(e) =
+                            clipboard::apply_html(&clip.text, &clip.plain, &inbound_suppressor)
+                        {
                             eprintln!("ClipLink: {e}");
                             return;
                         }
@@ -720,16 +744,26 @@ pub fn run() {
                         return;
                     }
                     let device_name = file_state
-                        .settings.lock().ok()
-                        .and_then(|s| s.paired_devices.iter().find(|d| d.device_id == file.origin).map(|d| d.device_name.clone()))
+                        .settings
+                        .lock()
+                        .ok()
+                        .and_then(|s| {
+                            s.paired_devices
+                                .iter()
+                                .find(|d| d.device_id == file.origin)
+                                .map(|d| d.device_name.clone())
+                        })
                         .unwrap_or_else(|| "Android phone".into());
-                    let _ = file_handle.emit("file_received", serde_json::json!({
-                        "fileName": file.file_name,
-                        "mimeType": file.mime_type,
-                        "size": file.data.len(),
-                        "path": dest.to_string_lossy(),
-                        "deviceName": device_name,
-                    }));
+                    let _ = file_handle.emit(
+                        "file_received",
+                        serde_json::json!({
+                            "fileName": file.file_name,
+                            "mimeType": file.mime_type,
+                            "size": file.data.len(),
+                            "path": dest.to_string_lossy(),
+                            "deviceName": device_name,
+                        }),
+                    );
                 },
                 move |notif: crate::protocol::PhoneNotification| {
                     // Forward the phone notification to the frontend as a Tauri event.
@@ -745,12 +779,11 @@ pub fn run() {
                 use clipboard::ClipboardContent;
 
                 let (text, image_png, content_type) = match &content {
-                    ClipboardContent::Text(t) => {
-                        (t.clone(), None, "text/plain".to_string())
-                    }
+                    ClipboardContent::Text(t) => (t.clone(), None, "text/plain".to_string()),
                     ClipboardContent::Html { html, plain } => {
                         // Encode as JSON so the phone can render rich text
-                        let payload = serde_json::json!({ "html": html, "plain": plain }).to_string();
+                        let payload =
+                            serde_json::json!({ "html": html, "plain": plain }).to_string();
                         (payload, None, "text/html".to_string())
                     }
                     ClipboardContent::Image(png) => {
@@ -782,14 +815,16 @@ pub fn run() {
                     pinned: false,
                 };
 
-                let _ = outbound_state.outgoing.send(OutgoingMessage::Clip(OutgoingClip {
-                    id,
-                    origin: outbound_state.device_id.clone(),
-                    content_type: content_type.clone(),
-                    text,
-                    image_png,
-                    sent_at: now(),
-                }));
+                let _ = outbound_state
+                    .outgoing
+                    .send(OutgoingMessage::Clip(OutgoingClip {
+                        id,
+                        origin: outbound_state.device_id.clone(),
+                        content_type: content_type.clone(),
+                        text,
+                        image_png,
+                        sent_at: now(),
+                    }));
 
                 if let Some(state) = handle.try_state::<App>() {
                     state.record(entry.clone());

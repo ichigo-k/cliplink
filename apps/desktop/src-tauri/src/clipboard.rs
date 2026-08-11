@@ -50,7 +50,10 @@ impl EchoSuppressor {
 pub enum ClipboardContent {
     Text(String),
     /// HTML source string (for rich text copies from browsers/Office).
-    Html { html: String, plain: String },
+    Html {
+        html: String,
+        plain: String,
+    },
     /// Raw PNG bytes ready to send over the wire.
     Image(Vec<u8>),
 }
@@ -234,8 +237,14 @@ mod tests {
     fn suppressed_content_is_ignored_exactly_once() {
         let suppressor = EchoSuppressor::default();
         suppressor.suppress("abc");
-        assert!(suppressor.should_ignore("abc"), "write we just made should be ignored");
-        assert!(!suppressor.should_ignore("abc"), "second copy is a real user action");
+        assert!(
+            suppressor.should_ignore("abc"),
+            "write we just made should be ignored"
+        );
+        assert!(
+            !suppressor.should_ignore("abc"),
+            "second copy is a real user action"
+        );
     }
 
     #[test]

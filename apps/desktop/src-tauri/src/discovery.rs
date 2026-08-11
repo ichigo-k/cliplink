@@ -13,11 +13,7 @@
 //! pick up the new address within one mDNS TTL (~10 s) and reconnect.
 
 use mdns_sd::{ServiceDaemon, ServiceInfo};
-use std::{
-    collections::HashSet,
-    net::IpAddr,
-    time::Duration,
-};
+use std::{collections::HashSet, net::IpAddr, time::Duration};
 
 const SERVICE_TYPE: &str = "_cliplink._tcp.local.";
 const POLL_INTERVAL: Duration = Duration::from_secs(10);
@@ -94,9 +90,7 @@ fn current_ipv4_addrs() -> HashSet<String> {
         .unwrap_or_default()
         .into_iter()
         .filter_map(|(_, ip)| match ip {
-            IpAddr::V4(v4) if !v4.is_loopback() && !v4.is_link_local() => {
-                Some(v4.to_string())
-            }
+            IpAddr::V4(v4) if !v4.is_loopback() && !v4.is_link_local() => Some(v4.to_string()),
             _ => None,
         })
         .collect()
