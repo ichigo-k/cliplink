@@ -3,6 +3,8 @@
 
 use crate::crypto::hash_hex;
 use arboard::ImageData;
+// Brings `write_image` into scope for PngEncoder in rgba_to_png.
+use image::ImageEncoder;
 use std::{
     borrow::Cow,
     collections::HashMap,

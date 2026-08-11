@@ -730,9 +730,6 @@ pub fn run() {
                     }
                     let _ = handle.emit("clip", entry);
                 },
-                move |device: settings::PairedDevice| {
-                    let _ = paired_handle.emit("device_paired", device);
-                },
                 move |file: InboundFile| {
                     // Save the received file to the user's Downloads folder
                     let downloads = dirs_next::download_dir()
@@ -769,6 +766,9 @@ pub fn run() {
                     // Forward the phone notification to the frontend as a Tauri event.
                     // The frontend can display it as a Windows notification toast.
                     let _ = notif_handle.emit("phone_notification", &notif);
+                },
+                move |device: settings::PairedDevice| {
+                    let _ = paired_handle.emit("device_paired", device);
                 },
             );
 

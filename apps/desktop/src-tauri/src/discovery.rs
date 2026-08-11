@@ -29,7 +29,6 @@ pub fn advertise(device_id: &str, device_name: &str, port: u16) -> Option<Servic
     // Spawn the re-advertisement watcher.
     let daemon_clone = daemon.clone();
     let device_id = device_id.to_string();
-    let device_name = device_name.to_string();
     std::thread::spawn(move || {
         let mut last_addrs = current_ipv4_addrs();
         loop {
