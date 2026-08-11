@@ -8,8 +8,6 @@ import {
   BackHandler,
   type AppStateStatus,
   Image,
-  NativeEventEmitter,
-  NativeModules,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -43,6 +41,12 @@ import {
   onNotificationPosted,
   onNotificationRemoved,
 } from './src/notificationService';
+import {
+  drainPendingShare,
+  onShareReceived,
+  MAX_SHARE_BYTES,
+  type SharedItem,
+} from './src/shareService';
 import { SettingsScreen } from './src/SettingsScreen';
 import { useUpdater, type Updater } from './src/useUpdater';
 import { C } from './src/theme';
@@ -55,7 +59,7 @@ type Toast = { message: string; type: 'success' | 'error' | 'info' };
 
 type ReceivedClip = { text: string; imageB64?: string; fileName?: string; filePath?: string; at: number };
 
-export default function App({ sharedText }: { sharedText?: string }) {
+export default function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [offer, setOffer] = useState<PairingOffer | null>(null);
   const [lastHost, setLastHost] = useState<string | undefined>(undefined);
@@ -325,40 +329,86 @@ export default function App({ sharedText }: { sharedText?: string }) {
     return () => sub.remove();
   }, [tryAutoSend]);
 
-  /* ── Share sheet intent (fresh launch) ── */
-  useEffect(() => {
-    if (!sharedText) return;
-    const waitAndSend = () => {
-      if (client.current?.send(sharedText)) {
-        lastSentRef.current = sharedText;
-        showToast('Shared text sent to your PC ✓');
-      } else {
-        setTimeout(waitAndSend, 600);
-      }
-    };
-    const t = setTimeout(waitAndSend, 800);
-    return () => clearTimeout(t);
-  }, [sharedText, showToast]);
+  /* ── Share sheet: text, images, documents, multi-select ── */
 
-  /* ── Share sheet intent (app already open) ── */
-  useEffect(() => {
-    const emitter = new NativeEventEmitter(
-      NativeModules.RCTDeviceEventEmitter ?? NativeModules.DeviceEventEmitter,
-    );
-    const sub = emitter.addListener('onSharedText', (text: string) => {
-      if (!text) return;
-      const trySend = () => {
-        if (client.current?.send(text)) {
-          lastSentRef.current = text;
-          showToast('Shared text sent to your PC ✓');
-        } else {
-          setTimeout(trySend, 600);
-        }
-      };
-      trySend();
-    });
-    return () => sub.remove();
+  /**
+   * Sends one shared item. Files are read off the cache copy the native side
+   * made for us, so the sender's content:// grant no longer matters.
+   */
+  const sendSharedItem = useCallback(async (item: SharedItem): Promise<boolean> => {
+    const c = client.current;
+    if (!c) return false;
+
+    if (item.kind === 'text') {
+      if (!c.send(item.text)) return false;
+      lastSentRef.current = item.text;
+      return true;
+    }
+
+    if (item.size > MAX_SHARE_BYTES) {
+      showToast(`${item.name} is too large to send`, 'error');
+      // Consumed deliberately — retrying will not make it smaller.
+      return true;
+    }
+
+    try {
+      const b64 = await FileSystem.readAsStringAsync(item.path, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+      // An image goes over the clipboard channel so it lands on the PC
+      // clipboard ready to paste; everything else is a file transfer.
+      const ok = item.mime.startsWith('image/')
+        ? c.sendImage(bytes)
+        : c.sendFile(bytes, item.name, item.mime) !== null;
+
+      if (ok) FileSystem.deleteAsync(item.path, { idempotent: true }).catch(() => { });
+      return ok;
+    } catch {
+      showToast(`Could not read ${item.name}`, 'error');
+      return true; // Unreadable is permanent — do not retry forever.
+    }
   }, [showToast]);
+
+  /**
+   * Sends a batch, waiting for the socket if the app was launched by the share
+   * itself and the connection has not come up yet.
+   */
+  const handleShared = useCallback(async (items: SharedItem[]) => {
+    if (!items.length) return;
+
+    let attempts = 0;
+    const queue = [...items];
+    while (queue.length && attempts < 20) {
+      const item = queue[0];
+      if (await sendSharedItem(item)) {
+        queue.shift();
+        attempts = 0;
+      } else {
+        attempts++;
+        await new Promise(r => setTimeout(r, 600));
+      }
+    }
+
+    const sent = items.length - queue.length;
+    if (sent > 0) {
+      showToast(sent === 1 ? 'Shared to your PC ✓' : `${sent} items sent to your PC ✓`);
+    }
+    if (queue.length) {
+      showToast('Could not reach your PC — is it running?', 'error');
+    }
+  }, [sendSharedItem, showToast]);
+
+  // Cold launch: whatever the share sheet queued before React was ready.
+  useEffect(() => {
+    drainPendingShare().then(handleShared);
+  }, [handleShared]);
+
+  // Already running: Android reuses the activity and the module emits.
+  useEffect(() => onShareReceived(handleShared), [handleShared]);
 
   /* ── QR scan ── */
   const onScan = useCallback(async ({ data }: { data: string }) => {

@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class ClipboardPackage : ReactPackage {
     override fun createNativeModules(ctx: ReactApplicationContext): List<NativeModule> =
-        listOf(ClipboardModule(ctx), NotificationModule(ctx))
+        listOf(ClipboardModule(ctx), NotificationModule(ctx), ShareModule(ctx))
 
     override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<*, *>> =
         emptyList()
