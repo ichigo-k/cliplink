@@ -21,6 +21,14 @@ import {
   X,
   ZapOff,
 } from 'lucide-react';
+import {
+  loadToastPrefs,
+  saveToastPrefs,
+  TOAST_POSITIONS,
+  TOAST_DURATIONS,
+  type ToastPrefs,
+} from './toastPrefs';
+import { publishToastPrefs } from './Toasts';
 import { QRCodeSVG } from 'qrcode.react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -81,6 +89,7 @@ export default function App() {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('devices');
   const [history, setHistory] = useState<ClipEntry[]>([]);
   const [settings, setSettings] = useState<SettingsView | null>(null);
+  const [toastPrefs, setToastPrefs] = useState<ToastPrefs>(loadToastPrefs);
   const [update, setUpdate] = useState('');
   const [copied, setCopied] = useState('');
   const [recording, setRecording] = useState(false);
@@ -234,6 +243,19 @@ export default function App() {
       setSettings(s => s ? { ...s, historyLimit: limit } : s);
       setHistory(h => h.slice(0, limit));
     } catch { /* silently ignore */ }
+  }
+
+  /**
+   * Writes toast preferences and tells the toast window, which lives in its own
+   * webview and would otherwise keep the old values until the next launch.
+   */
+  function changeToastPrefs(patch: Partial<ToastPrefs>) {
+    setToastPrefs(prev => {
+      const next = { ...prev, ...patch };
+      saveToastPrefs(next);
+      publishToastPrefs(next);
+      return next;
+    });
   }
 
   async function doClearHistory() {
@@ -733,6 +755,67 @@ export default function App() {
                 <div className="range-labels">
                   <span>10</span><span>100</span><span>200</span><span>500</span>
                 </div>
+              </div>
+
+              {/* Desktop notifications */}
+              <div className="panel setting setting-col">
+                <div className="setting-row-top">
+                  <div>
+                    <h2 className="setting-label">
+                      <Bell size={14} />
+                      Desktop notifications
+                    </h2>
+                    <p className="muted" style={{ fontSize: 13 }}>
+                      Pop up when your phone sends a notification, a file arrives,
+                      or a link is copied across.
+                    </p>
+                  </div>
+                  <button
+                    className={`toggle ${toastPrefs.enabled ? 'on' : ''}`}
+                    onClick={() => changeToastPrefs({ enabled: !toastPrefs.enabled })}
+                    aria-pressed={toastPrefs.enabled}
+                    aria-label="Toggle desktop notifications"
+                  >
+                    <span className="toggle-thumb" />
+                  </button>
+                </div>
+
+                {toastPrefs.enabled && (
+                  <>
+                    <div className="toast-pref">
+                      <span className="toast-pref__label">Position</span>
+                      <div className="pos-grid" role="radiogroup" aria-label="Notification position">
+                        {TOAST_POSITIONS.map(p => (
+                          <button
+                            key={p.value}
+                            role="radio"
+                            aria-checked={toastPrefs.position === p.value}
+                            className={`pos-cell ${toastPrefs.position === p.value ? 'on' : ''}`}
+                            onClick={() => changeToastPrefs({ position: p.value })}
+                            title={p.label}
+                          >
+                            <span className="pos-dot" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="toast-pref">
+                      <span className="toast-pref__label">Show for</span>
+                      <div className="seg">
+                        {TOAST_DURATIONS.map(secs => (
+                          <button
+                            key={secs}
+                            className={`seg-item ${toastPrefs.durationMs === secs * 1000 ? 'on' : ''}`}
+                            onClick={() => changeToastPrefs({ durationMs: secs * 1000 })}
+                          >
+                            {secs}s
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Updates */}

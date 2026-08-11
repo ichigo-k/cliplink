@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import App from './App';
 import Overlay from './Overlay';
+import Toasts from './Toasts';
 import './styles.css';
 
 // One bundle serves both windows; the label decides which UI mounts. Outside
@@ -24,7 +25,7 @@ const label =
 
 document.documentElement.dataset.window = label;
 
-const Root = label === 'overlay' ? Overlay : App;
+const Root = label === 'overlay' ? Overlay : label === 'toast' ? Toasts : App;
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

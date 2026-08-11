@@ -87,7 +87,10 @@ body {
 
 html[data-window="overlay"],
 html[data-window="overlay"] body,
-html[data-window="overlay"] #root {
+html[data-window="overlay"] #root,
+html[data-window="toast"],
+html[data-window="toast"] body,
+html[data-window="toast"] #root {
   background: transparent;
   min-width: unset;
   min-height: unset;
@@ -1660,4 +1663,214 @@ main {
   line-height: 1.5;
   color: var(--text-3);
   max-width: 60ch;
+}
+
+/* ─── Toast window ──────────────────────────────────────────────────────────
+ *
+ * The window is transparent and sized to the stack, so anything not covered by
+ * a card must stay click-through — hence pointer-events discipline here.
+ * Toasts anchored to the top grow downward; bottom-anchored ones grow upward,
+ * so the newest card always sits nearest the screen edge it came from.
+ */
+
+.toast-root {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  pointer-events: none;
+  display: flex;
+}
+
+.toast-root[data-position^="top"] { align-items: flex-start; }
+.toast-root[data-position^="bottom"] { align-items: flex-end; }
+
+.toast-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.toast-root[data-position^="bottom"] .toast-stack {
+  flex-direction: column-reverse;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-top);
+  background: rgba(28, 28, 28, 0.88);
+  backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  animation: toast-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
+
+/* A thin accent edge keeps the three kinds distinguishable at a glance. */
+.toast--notification { border-left: 3px solid var(--accent); }
+.toast--file { border-left: 3px solid #60A5FA; }
+.toast--link { border-left: 3px solid #C084FC; }
+
+.toast__icon {
+  font-size: 15px;
+  line-height: 1.3;
+  flex-shrink: 0;
+}
+
+.toast__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast__title {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.toast__text {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.35;
+  /* Long links must not stretch the window past its fixed width. */
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.toast__action {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--accent-soft);
+  background: var(--accent-soft);
+  color: var(--accent-light);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.toast__action:hover {
+  background: var(--accent-soft2);
+  border-color: var(--accent);
+}
+
+.toast__close {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.toast__close:hover {
+  background: var(--surface-card-hv);
+  color: var(--text);
+}
+
+/* ─── Toast preferences (settings pane) ─────────────────────────────────── */
+
+.toast-pref {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.toast-pref__label {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* A miniature screen: picking a cell picks the corner toasts appear in. */
+.pos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 30px);
+  grid-template-rows: repeat(2, 22px);
+  gap: 3px;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--surface-input);
+  border: 1px solid var(--border-input);
+}
+
+.pos-cell {
+  display: flex;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.12s var(--ease);
+}
+
+.pos-cell:nth-child(-n+3) { align-items: flex-start; }
+.pos-cell:nth-child(n+4) { align-items: flex-end; }
+.pos-cell:nth-child(3n+1) { justify-content: flex-start; }
+.pos-cell:nth-child(3n+2) { justify-content: center; }
+.pos-cell:nth-child(3n) { justify-content: flex-end; }
+
+.pos-cell:hover { background: rgba(255, 255, 255, 0.08); }
+.pos-cell.on { background: var(--accent-soft); }
+
+.pos-dot {
+  width: 12px;
+  height: 5px;
+  margin: 3px;
+  border-radius: 2px;
+  background: var(--text-3);
+  transition: background 0.12s var(--ease);
+}
+
+.pos-cell.on .pos-dot { background: var(--accent); }
+
+/* Segmented control */
+.seg {
+  display: flex;
+  padding: 2px;
+  border-radius: var(--radius);
+  background: var(--surface-input);
+  border: 1px solid var(--border-input);
+}
+
+.seg-item {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
+.seg-item:hover { color: var(--text); }
+
+.seg-item.on {
+  background: var(--surface-card-hv);
+  color: var(--text);
+  font-weight: 600;
 }

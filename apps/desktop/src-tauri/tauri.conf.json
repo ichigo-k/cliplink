@@ -41,6 +41,21 @@
           ],
           "radius": 14
         }
+      },
+      {
+        "label": "toast",
+        "title": "ClipLink",
+        "width": 380,
+        "height": 120,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": false,
+        "focus": false,
+        "shadow": false
       }
     ],
     "security": {
