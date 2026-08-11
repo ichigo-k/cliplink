@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  Bell,
   Check,
   Clipboard,
+  File,
   HardDrive,
   History,
   Keyboard,
@@ -16,6 +18,7 @@ import {
   Trash2,
   Unlink,
   Wifi,
+  X,
   ZapOff,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -23,7 +26,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { oneLine, timeAgo, type ClipEntry, type Pairing, type PairedDevice, type SettingsView } from './types';
+import { oneLine, timeAgo, formatBytes, type ClipEntry, type FileReceived, type Pairing, type PairedDevice, type PhoneNotification, type SettingsView } from './types';
 
 const placeholder: Pairing = {
   deviceId: '',
@@ -38,6 +41,8 @@ const placeholder: Pairing = {
 const TABS = [
   { id: 'devices', label: 'Devices', icon: Smartphone },
   { id: 'clipboard', label: 'Clipboard', icon: Clipboard },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'files', label: 'Files', icon: File },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 
@@ -84,6 +89,8 @@ export default function App() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [confirmUnpair, setConfirmUnpair] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<PhoneNotification[]>([]);
+  const [filesReceived, setFilesReceived] = useState<FileReceived[]>([]);
 
   // Pairing flow state
   const [pairingPhase, setPairingPhase] = useState<PairingPhase>('idle');
@@ -126,6 +133,20 @@ export default function App() {
     const stopUnpaired = listen<string>('device_unpaired', () => refreshSettings());
     const stopChanged = listen<void>('settings_changed', () => refreshSettings());
 
+    // Phone notifications mirrored to PC
+    const stopNotif = listen<PhoneNotification>('phone_notification', e => {
+      setNotifications(prev => {
+        // Deduplicate by key
+        const filtered = prev.filter(n => n.key !== e.payload.key);
+        return [e.payload, ...filtered].slice(0, 50);
+      });
+    });
+
+    // Files received from phone
+    const stopFile = listen<FileReceived>('file_received', e => {
+      setFilesReceived(prev => [e.payload, ...prev].slice(0, 20));
+    });
+
     const tick = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
 
     return () => {
@@ -133,6 +154,8 @@ export default function App() {
       stopPaired.then(fn => fn());
       stopUnpaired.then(fn => fn());
       stopChanged.then(fn => fn());
+      stopNotif.then(fn => fn());
+      stopFile.then(fn => fn());
       clearInterval(tick);
     };
   }, [refreshPairing, refreshSettings]);
@@ -217,6 +240,13 @@ export default function App() {
     try {
       await invoke('clear_history');
       setHistory([]);
+    } catch { /* silently ignore */ }
+  }
+
+  async function dismissPhoneNotification(key: string) {
+    try {
+      await invoke('dismiss_phone_notification', { key });
+      setNotifications(prev => prev.filter(n => n.key !== key));
     } catch { /* silently ignore */ }
   }
 
@@ -515,6 +545,96 @@ export default function App() {
                           {copied === entry.id && (
                             <em className="copied"><Check size={11} /> Copied</em>
                           )}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {/* ════ NOTIFICATIONS TAB ════ */}
+          {tab === 'notifications' && (
+            <section className="page">
+              <header className="page-head page-head-row">
+                <div>
+                  <h1>Notifications</h1>
+                  <p>Mirrored from your phone in real time.</p>
+                </div>
+                {notifications.length > 0 && (
+                  <button className="btn" onClick={() => setNotifications([])}>
+                    <Trash2 size={13} /> Clear all
+                  </button>
+                )}
+              </header>
+
+              {notifications.length === 0 ? (
+                <div className="empty">
+                  <Bell size={22} />
+                  <p>Notifications from your phone will appear here once the app is granted Notification access.</p>
+                </div>
+              ) : (
+                <ul className="clips notif-list">
+                  {notifications.map(n => (
+                    <li key={n.key} className="notif-row">
+                      <div className="notif-body">
+                        <span className="notif-app">{n.appName}</span>
+                        <span className="notif-title">{n.title}</span>
+                        {n.text && <span className="notif-text">{n.text}</span>}
+                        <span className="notif-time">{timeAgo(Math.floor(n.postedAt / 1000))} ago</span>
+                      </div>
+                      <button
+                        className="icon-btn"
+                        title="Dismiss on phone"
+                        onClick={() => dismissPhoneNotification(n.key)}
+                        aria-label="Dismiss notification on phone"
+                      >
+                        <X size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {/* ════ FILES TAB ════ */}
+          {tab === 'files' && (
+            <section className="page">
+              <header className="page-head page-head-row">
+                <div>
+                  <h1>Files</h1>
+                  <p>Files received from your phone are saved to your Downloads folder.</p>
+                </div>
+                {filesReceived.length > 0 && (
+                  <button className="btn" onClick={() => setFilesReceived([])}>
+                    <Trash2 size={13} /> Clear list
+                  </button>
+                )}
+              </header>
+
+              {filesReceived.length === 0 ? (
+                <div className="empty">
+                  <File size={22} />
+                  <p>Files sent from your phone will appear here. Use the ClipLink app to send files.</p>
+                </div>
+              ) : (
+                <ul className="clips">
+                  {filesReceived.map((f, i) => (
+                    <li key={i}>
+                      <button onClick={() => invoke('open_path', { path: f.path }).catch(() => { })}>
+                        <span className="clip-text">
+                          <File size={13} style={{ display: 'inline', marginRight: 6 }} />
+                          {f.fileName}
+                        </span>
+                        <span className="clip-meta">
+                          <Smartphone size={11} />
+                          {f.deviceName}
+                          <i>·</i>
+                          {formatBytes(f.size)}
+                          <i>·</i>
+                          {f.mimeType}
                         </span>
                       </button>
                     </li>

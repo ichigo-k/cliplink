@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Background: rounded green square matching signal-500 #00D97C -->
+  <rect width="1024" height="1024" rx="230" ry="230" fill="#00D97C"/>
+
+  <!-- Chain / link icon centred, white, stroke-based scaled to ~62% of canvas -->
+  <!-- Original viewBox 0 0 24 24, scale to fit ~634px centred in 1024px -->
+  <!-- translate to centre: (1024 - 634) / 2 = 195, scale = 634/24 ≈ 26.42 -->
+  <g transform="translate(195, 195) scale(26.42)">
+    <!-- diagonal line -->
+    <line
+      x1="9.5" y1="14.5" x2="14.5" y2="9.5"
+      stroke="white" stroke-width="2.2" stroke-linecap="round"
+    />
+    <!-- top-right link arc -->
+    <path
+      d="M12.8 7.2 14.4 5.6a3.4 3.4 0 1 1 4.8 4.8l-1.6 1.6"
+      stroke="white" stroke-width="2.2" stroke-linecap="round" fill="none"
+    />
+    <!-- bottom-left link arc -->
+    <path
+      d="M11.2 16.8l-1.6 1.6a3.4 3.4 0 1 1-4.8-4.8l1.6-1.6"
+      stroke="white" stroke-width="2.2" stroke-linecap="round" fill="none"
+    />
+  </g>
+</svg>

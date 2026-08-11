@@ -11,12 +11,16 @@ if (typeof window !== "undefined") {
 const ITEMS = [
   "no cloud relay",
   "no account",
-  "no telemetry",
-  "no subscription",
-  "QR pairing in 4 seconds",
+  "clipboard sync",
+  "image sync",
+  "file transfer",
+  "notification mirror",
+  "URL handoff",
   "XChaCha20-Poly1305",
+  "mDNS auto-reconnect",
+  "background service",
   "works on airplane wifi",
-  "free for non-commercial use",
+  "open source",
 ];
 
 export default function Ticker() {
@@ -26,8 +30,6 @@ export default function Ticker() {
     const ctx = gsap.context(() => {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-      // Base crawl, then let scrolling shove it: fast scroll speeds the belt up
-      // and flips its direction, and it eases back to a drift when you stop.
       const loop = gsap.to(".tk-belt", {
         xPercent: -50,
         duration: 34,

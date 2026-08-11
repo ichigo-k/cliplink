@@ -5,7 +5,7 @@ import { Menu, X } from "lucide-react";
 import { GithubIcon, LogoMark, Wordmark } from "./brand";
 import { NAV, SITE, scrollToSection } from "@/lib/site";
 
-export default function Header() {
+export default function Header({ version }: { version?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState<string | null>(null);
@@ -189,7 +189,7 @@ export default function Header() {
                 onClick={() => go("downloads")}
                 className="rounded-md bg-signal-500 py-3.5 text-[15px] font-semibold text-canvas"
               >
-                Download {SITE.version}
+                Download {version ?? SITE.version}
               </button>
               <a
                 href={SITE.repo}

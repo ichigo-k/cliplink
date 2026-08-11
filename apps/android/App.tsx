@@ -21,6 +21,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { identityFromB64, secretToB64, type Identity } from '@cliplink/crypto';
 import { parsePairingOffer, type PairingOffer } from '@cliplink/protocol';
@@ -30,6 +31,18 @@ import {
   stopBackgroundSync,
   updateBackgroundStatus,
 } from './src/backgroundSync';
+import {
+  isAccessibilityServiceEnabled,
+  openAccessibilitySettings,
+  onClipboardChanged,
+} from './src/clipboardService';
+import {
+  isNotificationListenerEnabled,
+  openNotificationListenerSettings,
+  dismissNotification,
+  onNotificationPosted,
+  onNotificationRemoved,
+} from './src/notificationService';
 import { SettingsScreen } from './src/SettingsScreen';
 import { useUpdater, type Updater } from './src/useUpdater';
 import { C } from './src/theme';
@@ -40,7 +53,7 @@ const LAST_HOST_KEY = 'cliplink.lastHost';
 
 type Toast = { message: string; type: 'success' | 'error' | 'info' };
 
-type ReceivedClip = { text: string; at: number };
+type ReceivedClip = { text: string; imageB64?: string; fileName?: string; filePath?: string; at: number };
 
 export default function App({ sharedText }: { sharedText?: string }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -55,6 +68,8 @@ export default function App({ sharedText }: { sharedText?: string }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const [manualSent, setManualSent] = useState(false);
   const [confirmUnpair, setConfirmUnpair] = useState(false);
+  const [accessibilityEnabled, setAccessibilityEnabled] = useState(true); // optimistic
+  const [notifListenerEnabled, setNotifListenerEnabled] = useState(true); // optimistic
 
   const updater = useUpdater();
 
@@ -62,6 +77,13 @@ export default function App({ sharedText }: { sharedText?: string }) {
   const handledScan = useRef(false);
   const lastSentRef = useRef('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // In-progress file transfers from PC: transferId → { chunks, total, fileName, mimeType }
+  const fileBuffers = useRef<Map<string, {
+    chunks: Map<number, Uint8Array>;
+    total: number;
+    fileName: string;
+    mimeType: string;
+  }>>(new Map());
 
   /* ── Toast ── */
   const showToast = useCallback((message: string, type: Toast['type'] = 'success') => {
@@ -91,6 +113,47 @@ export default function App({ sharedText }: { sharedText?: string }) {
     })();
   }, []);
 
+  /* ── Accessibility service — check on mount and when app foregrounds ── */
+  useEffect(() => {
+    const check = async () => {
+      const [acc, notif] = await Promise.all([
+        isAccessibilityServiceEnabled(),
+        isNotificationListenerEnabled(),
+      ]);
+      setAccessibilityEnabled(acc);
+      setNotifListenerEnabled(notif);
+    };
+    check();
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') check();
+    });
+    return () => sub.remove();
+  }, []);
+
+  /* ── Forward phone notifications to the PC via WebSocket ── */
+  useEffect(() => {
+    const unsubPosted = onNotificationPosted((n) => {
+      client.current?.sendNotification(n);
+    });
+    const unsubRemoved = onNotificationRemoved((key) => {
+      client.current?.sendNotificationRemoved(key);
+    });
+    return () => { unsubPosted(); unsubRemoved(); };
+  }, []);
+
+  /* ── Auto-sync from accessibility service clipboard events ── */
+  useEffect(() => {
+    const unsub = onClipboardChanged((text) => {
+      const c = client.current;
+      if (!c || !text || text === lastSentRef.current) return;
+      if (c.send(text)) {
+        lastSentRef.current = text;
+        // Silent sync — no toast so it doesn't interrupt whatever the user is doing
+      }
+    });
+    return unsub;
+  }, []);
+
   /* ── Hardware back closes a sub-screen rather than quitting the app ── */
   useEffect(() => {
     if (!showSettings && !scanning) return;
@@ -105,6 +168,17 @@ export default function App({ sharedText }: { sharedText?: string }) {
   /* ── Socket lifecycle ── */
   useEffect(() => {
     if (!offer || !identity) return;
+
+    // Start the foreground service immediately — before the connection
+    // attempt. This is the key fix: the service must be alive *before*
+    // we go to the background, not only once connected. If we only start
+    // it on 'connected' and then the socket drops while backgrounded,
+    // the service gets stopped on the 'error' state, Android suspends the
+    // JS bridge, and the scheduled reconnect never fires. By keeping the
+    // service alive for the entire paired session (start here, stop only
+    // on unmount/unpair), the JS thread stays warm through all reconnects.
+    startBackgroundSync().then(() => updateBackgroundStatus('connecting'));
+
     const sync = new SyncClient(offer, identity, 'Android phone', {
       onStatus: (s) => {
         setStatus(s);
@@ -114,20 +188,88 @@ export default function App({ sharedText }: { sharedText?: string }) {
             setLastHost(h);
             SecureStore.setItemAsync(LAST_HOST_KEY, h).catch(() => { });
           }
-          // Keep the JS runtime alive while the socket is up so PC → phone
-          // clips still land when the app is backgrounded.
-          startBackgroundSync().then(() => updateBackgroundStatus(s.deviceName));
-        } else if (s.state === 'idle' || s.state === 'error') {
-          stopBackgroundSync();
+          updateBackgroundStatus('connected', s.deviceName);
+        } else if (s.state === 'connecting') {
+          updateBackgroundStatus('connecting');
+        } else if (s.state === 'error') {
+          updateBackgroundStatus('reconnecting');
         }
       },
       onClip: async (text) => {
-        // Write directly to Android clipboard — this works from background
-        // because setStringAsync (write) is not restricted, only read is.
         try { await Clipboard.setStringAsync(text); } catch { /* best effort */ }
-        // Also keep a visible history so user can see what arrived
+        // Auto-open URLs that come from the PC
+        const trimmed = text.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          try {
+            const { Linking } = await import('react-native');
+            const canOpen = await Linking.canOpenURL(trimmed);
+            if (canOpen) Linking.openURL(trimmed);
+          } catch { /* best effort */ }
+        }
         setReceived(prev => [{ text, at: Date.now() }, ...prev].slice(0, 20));
         showToast('Clipboard synced from PC ✓', 'info');
+      },
+      onImageClip: async (pngBase64) => {
+        try {
+          const path = `${FileSystem.cacheDirectory}cliplink_incoming.png`;
+          await FileSystem.writeAsStringAsync(path, pngBase64, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          await Clipboard.setImageAsync(path);
+        } catch { /* best effort */ }
+        setReceived(prev => [{ imageB64: pngBase64, text: '', at: Date.now() }, ...prev].slice(0, 20));
+        showToast('Image synced from PC ✓', 'info');
+      },
+      onFileStart: (transferId, fileName, totalChunks, mimeType) => {
+        fileBuffers.current.set(transferId, {
+          chunks: new Map(),
+          total: totalChunks,
+          fileName,
+          mimeType,
+        });
+        showToast(`Receiving ${fileName}…`, 'info');
+      },
+      onFileChunk: async (transferId, chunkIndex, totalChunks, data) => {
+        const buf = fileBuffers.current.get(transferId);
+        if (!buf) return;
+        buf.chunks.set(chunkIndex, data);
+
+        // All chunks received — reassemble and save
+        if (buf.chunks.size === totalChunks) {
+          const assembled = new Uint8Array(
+            Array.from({ length: totalChunks }, (_, i) => buf.chunks.get(i)!)
+              .flatMap(chunk => Array.from(chunk))
+          );
+          fileBuffers.current.delete(transferId);
+
+          // Convert to base64 and save to Downloads via expo-file-system
+          try {
+            const b64 = btoa(String.fromCharCode(...assembled));
+            const dest = `${FileSystem.documentDirectory}${buf.fileName}`;
+            await FileSystem.writeAsStringAsync(dest, b64, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            // Send ack
+            client.current?.sendFileAck(transferId, true);
+            setReceived(prev => [{
+              text: '',
+              fileName: buf.fileName,
+              filePath: dest,
+              at: Date.now(),
+            }, ...prev].slice(0, 20));
+            showToast(`${buf.fileName} saved ✓`, 'success');
+          } catch (e) {
+            client.current?.sendFileAck(transferId, false, String(e));
+            showToast(`Failed to save ${buf.fileName}`, 'error');
+          }
+        }
+      },
+      onFileComplete: (transferId) => {
+        fileBuffers.current.delete(transferId);
+      },
+      onNotificationDismiss: (key) => {
+        // PC dismissed the mirrored notification — dismiss it on the phone too
+        dismissNotification(key);
       },
     }, lastHost);
     client.current = sync;
@@ -135,6 +277,8 @@ export default function App({ sharedText }: { sharedText?: string }) {
     return () => {
       sync.close();
       client.current = null;
+      // Stop the service only here — when the component unmounts (app fully
+      // closed) or the user unpairs. Not on disconnect/error.
       stopBackgroundSync();
     };
   }, [offer, identity, showToast]);
@@ -143,6 +287,28 @@ export default function App({ sharedText }: { sharedText?: string }) {
   const tryAutoSend = useCallback(async () => {
     const c = client.current;
     if (!c || status.state !== 'connected') return;
+
+    // Try image first — if the user took a screenshot it lands as an image
+    // on the clipboard, not text.
+    try {
+      const hasImage = await Clipboard.hasImageAsync();
+      if (hasImage) {
+        const img = await Clipboard.getImageAsync({ format: 'png' });
+        const b64 = img?.data ?? null;
+        if (b64 && b64 !== lastSentRef.current) {
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          if (c.sendImage(bytes)) {
+            lastSentRef.current = b64;
+            showToast('Image sent to your PC ✓');
+            return;
+          }
+        }
+      }
+    } catch { /* image clipboard read may not be available */ }
+
+    // Fallback to text
     const text = await Clipboard.getStringAsync();
     if (!text || text === lastSentRef.current) return;
     if (c.send(text)) {
@@ -250,6 +416,28 @@ export default function App({ sharedText }: { sharedText?: string }) {
   const copyReceived = useCallback(async (text: string) => {
     await Clipboard.setStringAsync(text);
     showToast('Copied ✓');
+  }, [showToast]);
+
+  const copyReceivedImage = useCallback(async (b64: string) => {
+    try {
+      const path = `${FileSystem.cacheDirectory}cliplink_recopy.png`;
+      await FileSystem.writeAsStringAsync(path, b64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      await Clipboard.setImageAsync(path);
+      showToast('Image copied ✓');
+    } catch {
+      showToast('Could not copy image', 'error');
+    }
+  }, [showToast]);
+
+  const openFile = useCallback(async (filePath: string, fileName: string) => {
+    try {
+      const { Linking } = await import('react-native');
+      await Linking.openURL(filePath);
+    } catch {
+      showToast(`Could not open ${fileName}`, 'error');
+    }
   }, [showToast]);
 
   /* ── Settings screen ── */
@@ -384,6 +572,36 @@ export default function App({ sharedText }: { sharedText?: string }) {
           )}
         </View>
 
+        {/* ── Accessibility service nudge ── */}
+        {!!offer && !accessibilityEnabled && (
+          <View style={S.accessBanner}>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={S.accessTitle}>Enable auto-sync</Text>
+              <Text style={S.accessSub}>
+                Allow ClipLink to detect copies so text syncs to your PC instantly — no tapping needed.
+              </Text>
+            </View>
+            <Pressable style={S.accessBtn} onPress={openAccessibilitySettings}>
+              <Text style={S.accessBtnText}>Enable</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── Notification listener nudge ── */}
+        {!!offer && !notifListenerEnabled && (
+          <View style={[S.accessBanner, S.notifBanner]}>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={S.accessTitle}>Mirror notifications</Text>
+              <Text style={S.accessSub}>
+                Let ClipLink forward your phone notifications to your PC so you never miss a message.
+              </Text>
+            </View>
+            <Pressable style={[S.accessBtn, S.notifBtn]} onPress={openNotificationListenerSettings}>
+              <Text style={S.accessBtnText}>Enable</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* ── Paired device — managed here, not hidden behind a menu ── */}
         {!!offer && (
           <View style={S.section}>
@@ -460,12 +678,34 @@ export default function App({ sharedText }: { sharedText?: string }) {
               <Pressable
                 key={i}
                 style={S.clipRow}
-                onPress={() => copyReceived(clip.text)}
+                onPress={() => clip.imageB64
+                  ? copyReceivedImage(clip.imageB64)
+                  : clip.filePath
+                    ? openFile(clip.filePath, clip.fileName ?? 'file')
+                    : copyReceived(clip.text)}
               >
-                <Text style={S.clipText} numberOfLines={2}>{clip.text}</Text>
-                <View style={S.copyTag}>
-                  <Text style={S.copyTagText}>Re-copy</Text>
-                </View>
+                {clip.imageB64 ? (
+                  <Image
+                    source={{ uri: `data:image/png;base64,${clip.imageB64}` }}
+                    style={S.clipImage}
+                    resizeMode="contain"
+                  />
+                ) : clip.fileName ? (
+                  <View style={S.fileRow}>
+                    <Text style={S.fileIcon}>📄</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={S.clipText} numberOfLines={1}>{clip.fileName}</Text>
+                      <Text style={S.fileSub}>Tap to open</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={S.clipText} numberOfLines={2}>{clip.text}</Text>
+                )}
+                {!clip.fileName && (
+                  <View style={S.copyTag}>
+                    <Text style={S.copyTagText}>Re-copy</Text>
+                  </View>
+                )}
               </Pressable>
             ))}
           </View>
@@ -757,6 +997,26 @@ const S = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  clipImage: {
+    flex: 1,
+    height: 120,
+    borderRadius: 6,
+    backgroundColor: '#0d1f16',
+  },
+  fileRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  fileIcon: {
+    fontSize: 28,
+  },
+  fileSub: {
+    color: C.muted,
+    fontSize: 11,
+    marginTop: 2,
+  },
   copyTag: {
     backgroundColor: 'rgba(34,197,94,0.15)',
     borderRadius: 6,
@@ -766,6 +1026,49 @@ const S = StyleSheet.create({
     borderColor: 'rgba(34,197,94,0.28)',
   },
   copyTagText: { color: C.accentLt, fontSize: 12, fontWeight: '600' },
+
+  /* Accessibility service nudge banner */
+  accessBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#0f2535',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.25)',
+    padding: 14,
+  },
+  accessTitle: {
+    color: C.text,
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  accessSub: {
+    color: C.muted,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  accessBtn: {
+    backgroundColor: 'rgba(56,189,248,0.15)',
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(56,189,248,0.35)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  accessBtnText: {
+    color: '#7dd3fc',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  notifBanner: {
+    backgroundColor: '#1a1030',
+    borderColor: 'rgba(167,139,250,0.25)',
+  },
+  notifBtn: {
+    backgroundColor: 'rgba(167,139,250,0.15)',
+    borderColor: 'rgba(167,139,250,0.35)',
+  },
 
   /* Scanner */
   scanRoot: { flex: 1, backgroundColor: '#000' },

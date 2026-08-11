@@ -1,4 +1,5 @@
-//! On-disk state: identity, hotkey, paired phones, and user preferences.
+//! On-disk state: identity, hotkey, paired phones, user preferences,
+//! and persisted clipboard history.
 
 use crate::crypto::Identity;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
@@ -15,12 +16,8 @@ pub struct PairedDevice {
     pub device_name: String,
     pub public_key: String,
     pub paired_at: u64,
-    /// Last IP address this device successfully connected from.
-    /// Used as the first candidate on reconnect so we don't have to brute-force
-    /// all network interfaces again.
     #[serde(default)]
     pub last_host: Option<String>,
-    /// Unix seconds of the last time this device connected.
     #[serde(default)]
     pub last_seen: Option<u64>,
 }
@@ -32,10 +29,8 @@ pub struct Settings {
     pub device_name: String,
     pub secret_key: String,
     pub paired_devices: Vec<PairedDevice>,
-    /// Launch ClipLink automatically when Windows starts.
     #[serde(default)]
     pub launch_at_startup: bool,
-    /// Maximum clipboard history entries kept in memory.
     #[serde(default = "default_history_limit")]
     pub history_limit: usize,
 }
@@ -109,6 +104,54 @@ impl Settings {
 
     fn path(dir: &Path) -> PathBuf {
         dir.join("settings.json")
+    }
+}
+
+// ─── Persisted history ────────────────────────────────────────────────────────
+
+/// A clipboard entry as stored on disk. Image data URLs are large so we cap
+/// the number of image entries separately in practice via history_limit.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedEntry {
+    pub id: String,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub image_data_url: String,
+    pub origin: String,
+    pub device_name: String,
+    pub received_at: u64,
+    #[serde(default)]
+    pub pinned: bool,
+    /// "text/plain", "text/html", "image/png", etc.
+    #[serde(default = "default_content_type")]
+    pub content_type: String,
+}
+
+fn default_content_type() -> String {
+    "text/plain".into()
+}
+
+pub struct HistoryStore {
+    path: PathBuf,
+}
+
+impl HistoryStore {
+    pub fn new(dir: &Path) -> Self {
+        Self { path: dir.join("history.json") }
+    }
+
+    pub fn load(&self) -> Vec<PersistedEntry> {
+        std::fs::read_to_string(&self.path)
+            .ok()
+            .and_then(|raw| serde_json::from_str::<Vec<PersistedEntry>>(&raw).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save(&self, entries: &[PersistedEntry]) {
+        if let Ok(json) = serde_json::to_string(entries) {
+            let _ = std::fs::write(&self.path, json);
+        }
     }
 }
 

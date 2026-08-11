@@ -2,7 +2,7 @@
   "expo": {
     "name": "ClipLink",
     "slug": "cliplink",
-    "version": "0.1.19",
+    "version": "0.1.20",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -30,22 +30,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#10251E"
       },
-      "intentFilters": [
-        {
-          "action": "android.intent.action.SEND",
-          "data": [
-            {
-              "mimeType": "text/plain"
-            }
-          ],
-          "category": [
-            "android.intent.category.DEFAULT"
-          ]
-        }
-      ]
+      "intentFilters": []
     },
     "plugins": [
       "./plugins/withBackgroundService",
+      "./plugins/withShareActivity",
+      "./plugins/withAccessibilityService",
+      "./plugins/withNotificationListener",
       [
         "expo-build-properties",
         {

@@ -1,7 +1,10 @@
 export const PROTOCOL_VERSION = 1;
 export const DEFAULT_PORT = 47123;
 export const SYNC_PATH = '/v1/sync';
-export const MAX_PAYLOAD_BYTES = 1024 * 1024;
+export const MAX_TEXT_PAYLOAD_BYTES = 1024 * 1024;         // 1 MB
+export const MAX_IMAGE_PAYLOAD_BYTES = 5 * 1024 * 1024;    // 5 MB
+export const MAX_FILE_CHUNK_BYTES = 256 * 1024;            // 256 KB per chunk
+export const MAX_PAYLOAD_BYTES = MAX_IMAGE_PAYLOAD_BYTES;
 export const HEARTBEAT_INTERVAL_MS = 20_000;
 export const IDLE_TIMEOUT_MS = 60_000;
 
@@ -64,7 +67,54 @@ export type Clip = {
 export type Ping = { type: 'ping' };
 export type ProtocolError = { type: 'error'; code: ErrorCode; message: string };
 
-export type Message = Hello | HelloAck | Clip | Ping | ProtocolError;
+/**
+ * Initiates a file transfer. Sent before the first chunk.
+ * The receiver replies with file-ack to accept or reject.
+ */
+export type FileStart = {
+  type: 'file-start';
+  transferId: string;
+  fileName: string;
+  fileSize: number;   // total bytes
+  mimeType: string;
+  totalChunks: number;
+};
+
+/** A single encrypted chunk of a file. */
+export type FileChunk = {
+  type: 'file-chunk';
+  transferId: string;
+  chunkIndex: number;
+  totalChunks: number;
+  payload: string;    // base64(encrypted chunk bytes)
+};
+
+/** Sent by the receiver to acknowledge completion or signal an error. */
+export type FileAck = {
+  type: 'file-ack';
+  transferId: string;
+  ok: boolean;
+  error?: string;
+};
+
+/** Sent by the phone to mirror a notification on the PC. */
+export type NotificationMsg = {
+  type: 'notification';
+  key: string;
+  packageName: string;
+  appName: string;
+  title: string;
+  text: string;
+  postedAt: number;
+};
+
+/** Sent by the PC to dismiss a mirrored notification on the phone. */
+export type NotificationDismiss = {
+  type: 'notification-dismiss';
+  key: string;
+};
+
+export type Message = Hello | HelloAck | Clip | Ping | ProtocolError | FileStart | FileChunk | FileAck | NotificationMsg | NotificationDismiss;
 
 /**
  * Validates a scanned QR payload. Returns the offer, or a reason it was
@@ -109,7 +159,7 @@ export function isMessage(value: unknown): value is Message {
 export class EchoSuppressor {
   private readonly seen = new Map<string, number>();
 
-  constructor(private readonly ttlMs = 5_000) {}
+  constructor(private readonly ttlMs = 5_000) { }
 
   suppress(hash: string, now = Date.now()): void {
     this.seen.set(hash, now + this.ttlMs);

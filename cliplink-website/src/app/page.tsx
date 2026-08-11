@@ -7,21 +7,28 @@ import SecurityDeepDive from "@/components/SecurityDeepDive";
 import Contributors from "@/components/Contributors";
 import Downloads from "@/components/Downloads";
 import Footer from "@/components/Footer";
+import { fetchLatestRelease } from "@/lib/release";
 
-export default function Home() {
+// Revalidate the page every 5 minutes so a new GitHub release
+// appears on the site without a manual redeploy.
+export const revalidate = 300;
+
+export default async function Home() {
+  const release = await fetchLatestRelease();
+
   return (
     <>
-      <Header />
+      <Header version={release.version} />
       <main className="flex-1">
-        <Hero />
+        <Hero version={release.version} />
         <Ticker />
         <Features />
         <SyncSimulator />
         <SecurityDeepDive />
         <Contributors />
-        <Downloads />
+        <Downloads release={release} />
       </main>
-      <Footer />
+      <Footer version={release.version} />
     </>
   );
 }

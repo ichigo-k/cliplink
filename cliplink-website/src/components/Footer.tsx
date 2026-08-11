@@ -19,7 +19,7 @@ const RESOURCES = [
   { label: "License", href: `${SITE.repo}/blob/main/LICENSE` },
 ];
 
-export default function Footer() {
+export default function Footer({ version }: { version?: string }) {
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function Footer() {
               className="group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-signal-500 px-7 py-3.5 text-[15px] font-semibold text-canvas transition-colors hover:bg-signal-400 sm:w-auto cursor-pointer"
             >
               <Download className="h-4 w-4 transition-transform group-hover:translate-y-0.5" />
-              Download {SITE.version}
+              Download {version ?? SITE.version}
             </button>
             <a
               href={SITE.repo}
@@ -120,7 +120,7 @@ export default function Footer() {
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-signal-400" />
               </span>
               <span className="font-mono text-[11px] text-ink-400">
-                {SITE.version} · shipping
+                {version ?? SITE.version} · shipping
               </span>
             </div>
           </div>

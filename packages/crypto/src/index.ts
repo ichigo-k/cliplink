@@ -42,6 +42,27 @@ export function sessionKey(identity: Identity, peerPublicB64: string): Uint8Arra
   return hkdf(sha256, shared, undefined, KDF_INFO, 32);
 }
 
+/** Seals arbitrary bytes as base64(nonce ‖ ciphertext ‖ tag). */
+export function sealBytes(key: Uint8Array, plaintext: Uint8Array): string {
+  const nonce = randomBytes(NONCE_LEN);
+  const ciphertext = xchacha20poly1305(key, nonce).encrypt(plaintext);
+  const framed = new Uint8Array(nonce.length + ciphertext.length);
+  framed.set(nonce);
+  framed.set(ciphertext, nonce.length);
+  return base64.encode(framed);
+}
+
+/** Returns null rather than throwing — a bad payload is a re-pair prompt, not a crash. */
+export function openBytes(key: Uint8Array, sealedB64: string): Uint8Array | null {
+  try {
+    const framed = base64.decode(sealedB64);
+    if (framed.length <= NONCE_LEN) return null;
+    return xchacha20poly1305(key, framed.slice(0, NONCE_LEN)).decrypt(framed.slice(NONCE_LEN));
+  } catch {
+    return null;
+  }
+}
+
 /** Seals plaintext as base64(nonce ‖ ciphertext ‖ tag). */
 export function seal(key: Uint8Array, plaintext: string): string {
   const nonce = randomBytes(NONCE_LEN);

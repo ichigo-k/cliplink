@@ -11,6 +11,10 @@ export type Pairing = {
 export type ClipEntry = {
   id: string;
   text: string;
+  /** data:image/png;base64,… — present for image clips */
+  imageDataUrl?: string;
+  /** "text/plain" | "text/html" | "image/png" */
+  contentType?: string;
   origin: string;
   deviceName: string;
   receivedAt: number;
@@ -34,6 +38,25 @@ export type SettingsView = {
   historyLimit: number;
 };
 
+/** A notification mirrored from the phone. */
+export type PhoneNotification = {
+  key: string;
+  packageName: string;
+  appName: string;
+  title: string;
+  text: string;
+  postedAt: number;
+};
+
+/** Emitted when the phone sends a file to the PC. */
+export type FileReceived = {
+  fileName: string;
+  mimeType: string;
+  size: number;
+  path: string;
+  deviceName: string;
+};
+
 export function timeAgo(seconds: number): string {
   const delta = Math.max(0, Math.floor(Date.now() / 1000) - seconds);
   if (delta < 45) return 'just now';
@@ -46,4 +69,11 @@ export function timeAgo(seconds: number): string {
 export function oneLine(text: string, max = 90): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+}
+
+/** Format bytes to human-readable string. */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

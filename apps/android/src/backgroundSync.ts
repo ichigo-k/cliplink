@@ -12,6 +12,13 @@
  * matters. Clipboard writes happen from onClip in App.tsx as usual and
  * work from the background because setPrimaryClip has no restriction
  * (only reads are gated on Android 10+).
+ *
+ * IMPORTANT: The service must start as soon as the app is paired and
+ * stay running through all connection state changes (connecting, error,
+ * reconnecting). Stopping it on disconnect is what causes the "need to
+ * re-open the app" bug — the JS bridge gets suspended mid-reconnect.
+ * Call startBackgroundSync() once when paired, stopBackgroundSync()
+ * only when the user explicitly unpairs or the app component unmounts.
  */
 import BackgroundActions from 'react-native-background-actions';
 
@@ -25,10 +32,10 @@ const keepAlive = async () => {
   }
 };
 
-const OPTIONS = {
+const BASE_OPTIONS = {
   taskName: 'ClipLink',
-  taskTitle: 'ClipLink is syncing',
-  taskDesc: 'Connected to your PC',
+  taskTitle: 'ClipLink',
+  taskDesc: 'Waiting to connect…',
   taskIcon: { name: 'ic_launcher', type: 'mipmap' },
   color: '#22C55E',
   linkingURI: 'cliplink://',
@@ -39,7 +46,7 @@ const OPTIONS = {
 export async function startBackgroundSync(): Promise<void> {
   if (BackgroundActions.isRunning()) return;
   try {
-    await BackgroundActions.start(keepAlive, OPTIONS);
+    await BackgroundActions.start(keepAlive, BASE_OPTIONS);
   } catch {
     // POST_NOTIFICATIONS denied, or OEM killed the service — degrade
     // silently. The app still works while foregrounded.
@@ -51,9 +58,31 @@ export async function stopBackgroundSync(): Promise<void> {
   try { await BackgroundActions.stop(); } catch { /* noop */ }
 }
 
-export async function updateBackgroundStatus(deviceName: string): Promise<void> {
+/**
+ * Update the persistent notification to reflect the current connection state.
+ * This gives the user visibility without needing to open the app.
+ */
+export async function updateBackgroundStatus(
+  state: 'connecting' | 'connected' | 'reconnecting' | 'error',
+  detail?: string,
+): Promise<void> {
   if (!BackgroundActions.isRunning()) return;
+  let taskDesc: string;
+  switch (state) {
+    case 'connected':
+      taskDesc = `Connected to ${detail ?? 'your PC'} ✓`;
+      break;
+    case 'connecting':
+      taskDesc = 'Connecting to your PC…';
+      break;
+    case 'reconnecting':
+      taskDesc = 'Connection lost — reconnecting…';
+      break;
+    case 'error':
+      taskDesc = detail ?? 'Could not reach your PC';
+      break;
+  }
   try {
-    await BackgroundActions.updateNotification({ taskDesc: `Connected to ${deviceName}` });
+    await BackgroundActions.updateNotification({ taskDesc });
   } catch { /* noop */ }
 }

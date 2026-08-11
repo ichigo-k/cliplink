@@ -3,7 +3,20 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Shield, WifiOff, Zap, QrCode, RefreshCw, Key } from "lucide-react";
+import {
+  Shield,
+  WifiOff,
+  Zap,
+  QrCode,
+  RefreshCw,
+  Key,
+  Image,
+  FileText,
+  Bell,
+  FolderOpen,
+  Link,
+  Wifi,
+} from "lucide-react";
 import SectionHeader from "./SectionHeader";
 
 if (typeof window !== "undefined") {
@@ -12,40 +25,76 @@ if (typeof window !== "undefined") {
 
 const FEATURES = [
   {
-    icon: WifiOff,
-    title: "Works offline",
-    body: "Your PC talks to your phone across the LAN. Unplug the internet and nothing changes.",
-    tag: "LAN",
+    icon: Zap,
+    title: "Auto-sync clipboard",
+    body: "Copy anything on either device and it lands on the other instantly. No tapping, no sharing — the accessibility service watches for changes.",
+    tag: "BACKGROUND",
+  },
+  {
+    icon: Image,
+    title: "Images & screenshots",
+    body: "Screenshots, snips, and copied images sync in both directions. Take a screenshot on your phone, paste it on your PC.",
+    tag: "PNG",
+  },
+  {
+    icon: FileText,
+    title: "Rich text",
+    body: "HTML clipboard content syncs with formatting intact. Copy from a browser or Word, paste with styles preserved.",
+    tag: "HTML",
+  },
+  {
+    icon: FolderOpen,
+    title: "File transfer",
+    body: "Send any file from phone to PC or PC to phone over your LAN. Files land in your Downloads folder automatically.",
+    tag: "CHUNKED",
+  },
+  {
+    icon: Bell,
+    title: "Notification mirror",
+    body: "Phone notifications appear on your PC in real time. Dismiss from either side and both clear.",
+    tag: "2-WAY",
+  },
+  {
+    icon: Link,
+    title: "URL handoff",
+    body: "Copy a URL on your PC and it opens on your phone automatically. No more forwarding links to yourself.",
+    tag: "DEEP-LINK",
+  },
+  {
+    icon: Wifi,
+    title: "Network-aware reconnect",
+    body: "Switch Wi-Fi networks and ClipLink finds your PC again in seconds via mDNS — no stored IP required.",
+    tag: "mDNS",
+  },
+  {
+    icon: Key,
+    title: "End-to-end encrypted",
+    body: "Every clip, image, and file is sealed with XChaCha20-Poly1305 before it leaves the device. Nothing readable crosses the wire.",
+    tag: "AEAD",
   },
   {
     icon: Shield,
-    title: "No account",
-    body: "Nothing to sign up for, nothing to breach. Your identity is a key pair on your own disk.",
+    title: "No account, no cloud",
+    body: "Your identity is a key pair on your own disk. No servers, no sign-up, nothing to breach.",
     tag: "ZERO-ACCOUNT",
   },
   {
     icon: QrCode,
     title: "Pair in seconds",
-    body: "Scan the QR on your desktop once. The phone remembers it from then on.",
+    body: "Scan the QR on your desktop once. The phone remembers and reconnects automatically from then on.",
     tag: "X25519",
-  },
-  {
-    icon: Key,
-    title: "Encrypted end to end",
-    body: "Every clip is sealed before it leaves the device. Nothing readable crosses the wire.",
-    tag: "AEAD",
   },
   {
     icon: RefreshCw,
     title: "No echo loops",
-    body: "Synced pastes are fingerprinted, so they never bounce back as a fresh copy.",
+    body: "Synced content is fingerprinted so it never bounces back as a fresh copy.",
     tag: "SHA-256",
   },
   {
-    icon: Zap,
-    title: "Never press sync",
-    body: "The tray app watches the clipboard and pushes changes the moment they appear.",
-    tag: "500MS",
+    icon: WifiOff,
+    title: "Works offline",
+    body: "Everything runs over your local network. Unplug the internet and nothing changes.",
+    tag: "LAN",
   },
 ];
 
@@ -61,7 +110,7 @@ export default function Features() {
           opacity: 1,
           y: 0,
           duration: 0.7,
-          stagger: 0.07,
+          stagger: 0.06,
           ease: "expo.out",
           scrollTrigger: { trigger: ".feature-grid", start: "top 82%" },
         }
@@ -82,22 +131,20 @@ export default function Features() {
           label="What it does"
           title={
             <>
-              Six decisions that keep your
-              <br className="hidden sm:block" /> clipboard{" "}
-              <span className="text-signal-400">yours</span>.
+              Everything your devices share,
+              <br className="hidden sm:block" />{" "}
+              <span className="text-signal-400">without the cloud.</span>
             </>
           }
-          blurb="Small on purpose. Everything here exists so no other machine ever sees what you copy."
+          blurb="Clipboard, images, files, notifications, URLs — all of it over your own network, encrypted."
         />
 
-        {/* A single ruled grid — cells share hairlines instead of floating as cards */}
         <div className="feature-grid mt-10 grid sm:mt-16 grid-cols-1 border-t border-l hairline sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, body, tag }, i) => (
             <article
               key={title}
               className="feature-cell group relative border-b border-r hairline p-6 transition-colors duration-300 hover:bg-ink-900/50 sm:p-7 lg:p-9"
             >
-              {/* accent bar that draws in on hover */}
               <span className="absolute left-0 top-0 h-px w-full origin-left scale-x-0 bg-signal-500 transition-transform duration-500 ease-[var(--ease-out-expo)] group-hover:scale-x-100" />
 
               <div className="flex items-start justify-between">

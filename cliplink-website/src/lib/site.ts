@@ -3,7 +3,8 @@ export const SITE = {
   issues: "https://github.com/ichigo-k/cliplink/issues",
   releases: "https://github.com/ichigo-k/cliplink/releases/latest",
   contribution: "/contribution",
-  version: "v0.1.18",
+  /** Fallback only — the live version comes from `fetchLatestRelease()`. */
+  version: "v0.1.19",
 } as const;
 
 export const NAV = [

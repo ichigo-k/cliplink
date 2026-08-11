@@ -1,6 +1,6 @@
 {
   "name": "cliplink-android",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -10,8 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cliplink/crypto": "*",
+    "@react-native-community/netinfo": "^11.4.1",
     "@cliplink/protocol": "*",
+    "@react-native-community/netinfo": "^11.4.1",
     "expo": "^57.0.0",
     "expo-build-properties": "~57.0.9",
     "expo-camera": "^57.0.0",

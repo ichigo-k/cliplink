@@ -37,10 +37,25 @@ base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 
 # System clipboard access
-arboard = "3"
+arboard = { version = "3", features = ["image-data", "wayland-data-control"] }
+
+# Image encoding/decoding for clipboard image support (PNG screenshots etc.)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+# base64 for image data URLs sent to the frontend
+base64 = "0.22"
 
 # Simulate keyboard input for auto-paste after overlay closes
 enigo = "0.2"
+
+# Open URLs in the default browser
+open = "5"
+
+# Resolve standard user directories (Downloads, Home, etc.)
+dirs-next = "2"
+
+# MIME type detection for file transfer
+mime-guess = "2"
 
 # Enumerates network interfaces; one "local IP" is not enough to find the PC
 local-ip-address = "0.6"
