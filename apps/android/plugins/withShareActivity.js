@@ -22,16 +22,23 @@ const { withAndroidManifest, withMainActivity } = require('@expo/config-plugins'
 /** Marker used to keep the Kotlin injection idempotent across prebuilds. */
 const HANDLER_MARKER = 'private fun extractSharedText';
 
-const HANDLER_KOTLIN = `
-  /**
-   * Pass incoming SEND intent text to the JS bundle as an initial prop
-   * ("sharedText"). Covers a fresh launch from the share sheet.
-   */
-  override fun getLaunchOptions(): Bundle? {
-    val text = extractSharedText(intent) ?: return null
-    return Bundle().apply { putString("sharedText", text) }
-  }
+/**
+ * Cold-launch half of the feature. `getLaunchOptions` is declared on
+ * ReactActivityDelegate, not on ReactActivity, so overriding it on the activity
+ * fails to compile with "overrides nothing". It goes in the anonymous
+ * DefaultReactActivityDelegate the template already builds.
+ */
+const DELEGATE_MARKER = 'putString("sharedText"';
 
+const DELEGATE_KOTLIN = `
+        /** Hand a SEND intent's text to JS as the initial "sharedText" prop. */
+        override fun getLaunchOptions(): Bundle? {
+          val text = extractSharedText(this@MainActivity.intent) ?: return null
+          return Bundle().apply { putString("sharedText", text) }
+        }
+`;
+
+const HANDLER_KOTLIN = `
   /**
    * When ClipLink is already running (singleTask), Android routes new intents
    * here instead of onCreate, so emit a JS event the running app can pick up.
@@ -88,6 +95,22 @@ function withShareIntentHandling(config) {
 
         contents =
             contents.slice(0, lastBrace) + HANDLER_KOTLIN + contents.slice(lastBrace);
+
+        // Then fill in the delegate's empty body with getLaunchOptions.
+        if (!contents.includes(DELEGATE_MARKER)) {
+            const delegateAnchor =
+                /(object\s*:\s*DefaultReactActivityDelegate\s*\([\s\S]*?\)\s*)\{\s*\}/;
+
+            if (!delegateAnchor.test(contents)) {
+                throw new Error(
+                    '[withShareActivity] Could not find the anonymous ' +
+                    'DefaultReactActivityDelegate in MainActivity.kt. Update this plugin — ' +
+                    'without getLaunchOptions, sharing to a closed app silently drops the text.'
+                );
+            }
+
+            contents = contents.replace(delegateAnchor, `$1{\n${DELEGATE_KOTLIN}      }`);
+        }
 
         config.modResults.contents = contents;
         return config;

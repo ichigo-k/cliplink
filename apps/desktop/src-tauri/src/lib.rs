@@ -780,20 +780,13 @@ pub fn run() {
 
                 let (text, image_png, content_type) = match &content {
                     ClipboardContent::Text(t) => (t.clone(), None, "text/plain".to_string()),
-                    ClipboardContent::Html { html, plain } => {
-                        // Encode as JSON so the phone can render rich text
-                        let payload =
-                            serde_json::json!({ "html": html, "plain": plain }).to_string();
-                        (payload, None, "text/html".to_string())
-                    }
                     ClipboardContent::Image(png) => {
                         (String::new(), Some(png.clone()), "image/png".to_string())
                     }
                 };
 
-                // Display text for history — use plain fallback for HTML
+                // Display text for history
                 let display_text = match &content {
-                    ClipboardContent::Html { plain, .. } => plain.clone(),
                     ClipboardContent::Text(t) => t.clone(),
                     ClipboardContent::Image(_) => String::new(),
                 };

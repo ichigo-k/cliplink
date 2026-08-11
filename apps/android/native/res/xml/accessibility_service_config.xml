@@ -3,8 +3,10 @@
   Accessibility service configuration for ClipLink's clipboard watcher.
 
   We declare the absolute minimum capabilities needed:
-  - typeAllMask scoped to TYPE_CLIPBOARD_CHANGED only (set at runtime in
-    onServiceConnected so older API levels that lack the constant don't crash)
+  - onServiceConnected narrows eventTypes to 0 at runtime: the framework has no
+    clipboard event type, and we need none. Being bound is what lets
+    ClipboardManager read the clipboard on Android 10+; the events themselves
+    are of no use to us.
   - No canRetrieveWindowContent — we never inspect UI elements
   - No canPerformGestures / canRequestTouchExplorationMode
   - canRequestFilterKeyEvents = false

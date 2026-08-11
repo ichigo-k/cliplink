@@ -15,8 +15,11 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
  * WHY THIS WORKS:
  * Android 10+ blocks clipboard reads from background apps. However an
  * AccessibilityService runs in a privileged context that is exempt from this
- * restriction. We listen for TYPE_CLIPBOARD_CHANGED (API 31+) and fall back to
- * a ClipboardManager.OnPrimaryClipChangedListener on older versions.
+ * restriction, so a plain ClipboardManager.OnPrimaryClipChangedListener
+ * registered here keeps firing while ClipLink is in the background.
+ *
+ * There is no clipboard accessibility event type in the framework, so we
+ * subscribe to no events at all — see onServiceConnected.
  *
  * The service emits a "onClipboardChanged" event to JS. App.tsx picks it up
  * and calls client.send() — exactly the same path as the manual "Send" button.
@@ -30,18 +33,22 @@ class ClipboardAccessibilityService : AccessibilityService() {
     private var clipListener: ClipboardManager.OnPrimaryClipChangedListener? = null
 
     override fun onServiceConnected() {
-        // Minimal footprint — we only need clipboard-changed events.
-        // We do NOT request any window/touch/gesture capabilities.
+        // We subscribe to NO accessibility events. There is no clipboard event
+        // type in the framework, so listening for any of them would only hand us
+        // screen content we have no use for.
+        //
+        // The service exists purely so ClipboardManager works: since Android 10
+        // only the default IME or a running accessibility service may read the
+        // clipboard in the background, and being bound is what grants that.
         serviceInfo = serviceInfo?.also { info ->
-            info.eventTypes = AccessibilityEvent.TYPE_CLIPBOARD_CHANGED
+            info.eventTypes = 0
             info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS.inv() and
                     info.flags // ensure we don't accidentally request window content
             info.notificationTimeout = 100
         }
 
-        // Fallback for Android < 11 where TYPE_CLIPBOARD_CHANGED isn't fired:
-        // listen via ClipboardManager directly.
+        // This listener is the actual clipboard mechanism.
         clipboardManager =
             getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         clipListener = ClipboardManager.OnPrimaryClipChangedListener {
@@ -53,10 +60,8 @@ class ClipboardAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        // TYPE_CLIPBOARD_CHANGED fires on Android 11+ — handle it here.
-        if (event.eventType == AccessibilityEvent.TYPE_CLIPBOARD_CHANGED) {
-            emitClipboardChange()
-        }
+        // Required override. eventTypes is 0, so nothing is delivered here and
+        // we deliberately inspect nothing.
     }
 
     override fun onInterrupt() {

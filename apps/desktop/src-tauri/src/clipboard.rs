@@ -51,16 +51,6 @@ impl EchoSuppressor {
 #[derive(Clone, Debug)]
 pub enum ClipboardContent {
     Text(String),
-    /// HTML source string (for rich text copies from browsers/Office).
-    ///
-    /// Only ever constructed on Windows, where arboard exposes `get_html()`.
-    /// Everywhere else the variant is still matched but never built, which
-    /// `-D warnings` counts as dead code.
-    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    Html {
-        html: String,
-        plain: String,
-    },
     /// Raw PNG bytes ready to send over the wire.
     Image(Vec<u8>),
 }
@@ -69,7 +59,6 @@ impl ClipboardContent {
     pub fn hash(&self) -> String {
         match self {
             ClipboardContent::Text(t) => hash_hex(t.as_bytes()),
-            ClipboardContent::Html { html, .. } => hash_hex(html.as_bytes()),
             ClipboardContent::Image(b) => hash_hex(b),
         }
     }
@@ -78,19 +67,13 @@ impl ClipboardContent {
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 /// Reads the clipboard and returns whatever is there.
-/// Priority: HTML > plain text > image.
+/// Priority: plain text > image.
+///
+/// Rich text is deliberately absent: arboard can *write* HTML (`set_html`) but
+/// offers no way to read it back on any platform, so there is no way to build
+/// an HTML variant here.
 pub fn read_any() -> Option<ClipboardContent> {
     let mut cb = arboard::Clipboard::new().ok()?;
-
-    // Try HTML first — richer than plain text, same clipboard slot.
-    // arboard exposes get_html() on Windows/macOS.
-    #[cfg(target_os = "windows")]
-    if let Ok(html) = cb.get_html() {
-        if !html.is_empty() {
-            let plain = cb.get_text().unwrap_or_default();
-            return Some(ClipboardContent::Html { html, plain });
-        }
-    }
 
     // Plain text fallback.
     if let Ok(t) = cb.get_text() {
