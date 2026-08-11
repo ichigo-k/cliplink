@@ -18,6 +18,7 @@ import {
   Wifi,
 } from "lucide-react";
 import SectionHeader from "./SectionHeader";
+import Accent from "./Accent";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
@@ -133,7 +134,7 @@ export default function Features() {
             <>
               Everything your devices share,
               <br className="hidden sm:block" />{" "}
-              <span className="text-signal-400">without the cloud.</span>
+              <Accent>without the cloud.</Accent>
             </>
           }
           blurb="Clipboard, images, files, notifications, URLs — all of it over your own network, encrypted."

@@ -1,0 +1,74 @@
+.container {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+}
+
+/* Take whatever height the flex parent hands down instead of the fixed cap */
+.fill {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.fill .list {
+  flex: 1;
+  max-height: none;
+}
+
+.list {
+  max-height: var(--al-max-height, 400px);
+  overflow-y: var(--al-overflow, auto);
+  padding: var(--al-padding, 16px);
+}
+
+.list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: var(--color-ink-800);
+  border-radius: 4px;
+}
+
+.noScrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.noScrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.row {
+  cursor: pointer;
+}
+
+.row + .row {
+  margin-top: var(--al-item-gap, 0.5rem);
+}
+
+.topGradient,
+.bottomGradient {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.topGradient {
+  top: 0;
+  height: 32px;
+  background: linear-gradient(to bottom, var(--al-fade, var(--color-ink-950)), transparent);
+}
+
+.bottomGradient {
+  bottom: 0;
+  height: 48px;
+  background: linear-gradient(to top, var(--al-fade, var(--color-ink-950)), transparent);
+}

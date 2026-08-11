@@ -17,6 +17,7 @@ import {
   Clock,
 } from "lucide-react";
 import SectionHeader from "./SectionHeader";
+import Accent from "./Accent";
 import { SITE } from "@/lib/site";
 import { usePlatform, type PlatformId } from "@/lib/platform";
 import type { ReleaseInfo, ResolvedBuild } from "@/lib/release";
@@ -113,7 +114,7 @@ export default function Downloads({ release }: Props) {
           title={
             <>
               Two installs.{" "}
-              <span className="text-signal-400">One scan.</span>
+              <Accent>One scan.</Accent>
             </>
           }
           blurb="Signed builds from CI. Nothing phones home."

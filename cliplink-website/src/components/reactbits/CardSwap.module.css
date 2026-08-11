@@ -1,0 +1,37 @@
+.container {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  /* The stack is anchored to the bottom-right of its stage and allowed to spill
+     a little past it — less than the upstream 5%/20% so it stays inside a
+     section's vertical padding instead of colliding with the next band. */
+  transform: translate(3%, 8%);
+  transform-origin: bottom right;
+  perspective: 900px;
+  overflow: visible;
+}
+
+.card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 12px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--color-ink-950);
+  transform-style: preserve-3d;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@media (max-width: 1023px) {
+  .container {
+    transform: scale(0.8) translate(6%, 12%);
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    transform: scale(0.72) translate(8%, 12%);
+  }
+}

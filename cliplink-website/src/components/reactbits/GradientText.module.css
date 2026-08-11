@@ -1,0 +1,68 @@
+.root {
+  position: relative;
+  display: flex;
+  max-width: fit-content;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Sits inside a heading, so it has to behave like a word rather than a box:
+   no auto margins, no baseline shift, and wrapping left to the parent. */
+.inline {
+  display: inline;
+  max-width: none;
+  overflow: visible;
+}
+
+.withBorder {
+  border-radius: 1.25rem;
+  padding: 0.35rem 0.75rem;
+  backdrop-filter: blur(10px);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.overlay::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: inherit;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  background-color: var(--color-canvas);
+  z-index: -1;
+}
+
+.text {
+  display: inline-block;
+  position: relative;
+  z-index: 2;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.inline .text {
+  display: inline;
+}
+
+/* Without a live gradient the text would be invisible, so hand the colour back
+   to the surrounding heading when motion is switched off. */
+@media (prefers-reduced-motion: reduce) {
+  .text {
+    background-image: none !important;
+    background-clip: border-box;
+    -webkit-background-clip: border-box;
+    color: var(--gt-static, currentColor);
+  }
+}

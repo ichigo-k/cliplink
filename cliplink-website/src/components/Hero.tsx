@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { ArrowDown, Play } from "lucide-react";
 import { GithubIcon } from "./brand";
+import GradientWaves from "./reactbits/GradientWaves";
 import { SITE, scrollToSection } from "@/lib/site";
 
 const LINES = ["Your devices,", "one clipboard."];
@@ -101,6 +102,33 @@ export default function Hero({ version }: { version?: string }) {
       ref={rootRef}
       className="relative flex min-h-[88svh] items-center overflow-hidden pt-28 pb-16 sm:min-h-[92vh] sm:pt-32 sm:pb-20"
     >
+      {/* Wave field across the lower half, dissolving upward so it reads as the
+          page's own horizon rather than a panel dropped onto it. Horizon colour
+          is the canvas itself, so the far distance melts into the background. */}
+      {/* The mask eases off at the base as well as the top, so the weight of the
+          field sits a third of the way up instead of piling onto the bottom
+          edge — the shader's near-field alpha is flat, so this is the only
+          place that shaping can happen. */}
+      <div className="absolute inset-x-0 bottom-0 h-[88%] [mask-image:linear-gradient(to_top,#0000008c_0%,#000_22%,#000_40%,transparent_96%)]">
+        <GradientWaves
+          horizonColor="#101615"
+          waveColor="#0a4a2f"
+          crestColor="#00d97c"
+          detail="low"
+          maxDpr={1.5}
+          speed={0.28}
+          amplitude={2.2}
+          waveScale={0.55}
+          tilt={1.15}
+          height={6.5}
+          fogDepth={26}
+          brightness={1.0}
+          opacity={0.62}
+          parallaxStrength={0.35}
+          grainIntensity={0.03}
+        />
+      </div>
+
       <div className="absolute inset-0 blueprint [mask-image:radial-gradient(70%_60%_at_50%_35%,#000_10%,transparent_78%)]" />
       <div className="absolute left-1/2 top-[-14rem] h-[640px] w-[640px] -translate-x-1/2 rounded-full bg-signal-500/[0.08] blur-[150px]" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-signal-500/40 to-transparent" />

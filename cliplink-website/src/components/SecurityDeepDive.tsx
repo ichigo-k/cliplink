@@ -3,6 +3,8 @@
 import { Fragment, useState } from "react";
 import { Key, Lock, ShieldCheck, Copy, Check } from "lucide-react";
 import SectionHeader from "./SectionHeader";
+import Accent from "./Accent";
+import BorderGlow from "./reactbits/BorderGlow";
 
 type Tab = "handshake" | "payload" | "suppression";
 
@@ -120,7 +122,7 @@ export default function SecurityDeepDive() {
             <>
               We assume your network
               <br className="hidden sm:block" /> is already{" "}
-              <span className="text-signal-400">hostile</span>.
+              <Accent>hostile</Accent>.
             </>
           }
           blurb="Café wifi, a shared router, a colleague's laptop — all treated the same. Authenticate, encrypt, trust nothing else."
@@ -154,7 +156,22 @@ export default function SecurityDeepDive() {
 
           {/* Terminal */}
           <div className="lg:col-span-7">
-            <div className="grain sticky top-24 overflow-hidden rounded-xl border hairline bg-ink-950">
+            {/* The panel is the one thing on this page people put a cursor on,
+                so it gets an edge that answers back. */}
+            <BorderGlow
+              className="sticky top-24"
+              borderRadius={12}
+              glowColor="154 100% 43%"
+              glowIntensity={0.8}
+              glowRadius={44}
+              coneSpread={22}
+              edgeSensitivity={26}
+              fillOpacity={0.3}
+              colors={["#00d97c", "#46fbaa", "#018a51"]}
+              backgroundColor="var(--color-ink-950)"
+              borderColor="var(--hairline)"
+            >
+             <div className="grain overflow-hidden rounded-[11px]">
               <div className="flex items-center justify-between border-b hairline bg-ink-900/50 px-3 py-2">
                 <div className="flex gap-1">
                   {TABS.map((t) => (
@@ -202,7 +219,8 @@ export default function SecurityDeepDive() {
                 <span className="font-mono text-[11px] text-ink-600">{active.file}</span>
                 <span className="eyebrow text-ink-600">rust + typescript</span>
               </div>
-            </div>
+             </div>
+            </BorderGlow>
           </div>
         </div>
       </div>

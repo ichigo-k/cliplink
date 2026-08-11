@@ -1,6 +1,8 @@
 import Header from "@/components/Header";
+import SectionRail from "@/components/SectionRail";
 import Hero from "@/components/Hero";
 import Ticker from "@/components/Ticker";
+import Spotlight from "@/components/Spotlight";
 import Features from "@/components/Features";
 import SyncSimulator from "@/components/SyncSimulator";
 import SecurityDeepDive from "@/components/SecurityDeepDive";
@@ -19,9 +21,11 @@ export default async function Home() {
   return (
     <>
       <Header version={release.version} />
+      <SectionRail />
       <main className="flex-1">
         <Hero version={release.version} />
         <Ticker />
+        <Spotlight />
         <Features />
         <SyncSimulator />
         <SecurityDeepDive />

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, GitPullRequest } from "lucide-react";
 import SectionHeader from "./SectionHeader";
+import Accent from "./Accent";
+import AnimatedList from "./reactbits/AnimatedList";
 import { SITE } from "@/lib/site";
 
 interface Contributor {
@@ -60,7 +62,7 @@ export default function Contributors() {
             <>
               Built in the open,
               <br className="hidden sm:block" /> by people you can{" "}
-              <span className="text-signal-400">name</span>.
+              <Accent>name</Accent>.
             </>
           }
           blurb="Pulled live from the repo. Ship a fix and you're on this list."
@@ -84,9 +86,24 @@ export default function Contributors() {
                 <span className="ml-auto h-3 w-16 animate-pulse rounded bg-ink-900" />
               </div>
             ))
-            : people.map((p, i) => (
+            : <AnimatedList
+              // A page-level list, not a scroller: no inner height cap, no edge
+              // fades, and rows stay put once they have arrived.
+              items={people}
+              getKey={(p) => p.id ?? p.login}
+              once
+              amount={0.3}
+              stagger={0.07}
+              duration={0.55}
+              scroll={false}
+              maxHeight="none"
+              padding="0"
+              itemGap="0"
+              showGradients={false}
+              displayScrollbar={false}
+              enableArrowNavigation={false}
+              renderItem={(p, i) => (
               <a
-                key={p.id ?? p.login}
                 href={p.html_url}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -123,7 +140,8 @@ export default function Contributors() {
 
                 <ArrowUpRight className="h-4 w-4 shrink-0 text-ink-600 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-signal-400" />
               </a>
-            ))}
+              )}
+            />}
 
           <a
             href={SITE.issues}
