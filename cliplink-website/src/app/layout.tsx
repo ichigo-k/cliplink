@@ -20,11 +20,11 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ClipLink — Direct Local Clipboard Sync & P2P File Transfer",
+  title: "ClipLink: Direct Local Clipboard Sync & P2P File Transfer",
   description: "ClipLink is an offline-first, source-available bridge for synchronizing clipboard content and transferring files securely between Windows PC, macOS, Linux, and Android over your local area network (LAN). No cloud. No accounts.",
   keywords: ["clipboard sync", "P2P transfer", "local network", "offline-first", "source available", "secure sharing", "Tauri", "React Native", "privacy tool"],
   openGraph: {
-    title: "ClipLink — Direct Local Clipboard Sync",
+    title: "ClipLink: Direct Local Clipboard Sync",
     description: "Your clipboard. Your devices. One private bridge. Synchronize copy-paste content locally between Windows, Mac, Linux, and Android with zero-cloud setup.",
     type: "website",
     url: "https://github.com/ichigo-k/cliplink",

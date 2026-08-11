@@ -359,7 +359,7 @@ export default function SyncSimulator() {
                         Next notif
                       </button>
                       <button
-                        onClick={() => pushToPc(`${notif.app}: ${notif.title} — ${notif.text}`, "notification")}
+                        onClick={() => pushToPc(`${notif.app} · ${notif.title}: ${notif.text}`, "notification")}
                         disabled={busy}
                         className="flex-1 rounded-md bg-signal-500 px-2 py-1.5 text-[11px] font-semibold text-canvas hover:bg-signal-400 disabled:opacity-40 cursor-pointer"
                       >

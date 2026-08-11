@@ -81,7 +81,7 @@ export default function LineSidebar({
   const activeRef = useRef(active);
 
   // The rAF loop reads these asynchronously, so mirroring them after the commit
-  // is soon enough — and keeps render itself free of ref writes.
+  // is soon enough, and keeps render itself free of ref writes.
   useEffect(() => {
     activeRef.current = active;
     smoothingRef.current = smoothing;

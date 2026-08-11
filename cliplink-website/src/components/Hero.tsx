@@ -107,7 +107,7 @@ export default function Hero({ version }: { version?: string }) {
           is the canvas itself, so the far distance melts into the background. */}
       {/* The mask eases off at the base as well as the top, so the weight of the
           field sits a third of the way up instead of piling onto the bottom
-          edge — the shader's near-field alpha is flat, so this is the only
+          edge. The shader's near-field alpha is flat, so this is the only
           place that shaping can happen. */}
       <div className="absolute inset-x-0 bottom-0 h-[88%] [mask-image:linear-gradient(to_top,#0000008c_0%,#000_22%,#000_40%,transparent_96%)]">
         <GradientWaves
@@ -160,7 +160,7 @@ export default function Hero({ version }: { version?: string }) {
           <span className="hero-rule mt-7 block h-px w-full max-w-md bg-gradient-to-r from-transparent via-signal-500/45 to-transparent sm:mt-9" />
 
           <p className="hero-item mt-7 max-w-lg text-[15.5px] leading-relaxed text-ink-300 sm:mt-8 sm:text-[17px]">
-            Clipboard, images, files, and notifications — synced between your PC and Android
+            Clipboard, images, files, and notifications, synced between your PC and Android
             over your own Wi-Fi. Encrypted. No cloud, no account.
           </p>
 

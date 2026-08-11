@@ -148,7 +148,7 @@ export default function Header({ version }: { version?: string }) {
         />
       </div>
 
-      {/* Mobile sheet — a real panel, not a max-height accordion */}
+      {/* Mobile sheet: a real panel, not a max-height accordion */}
       <div
         className={`fixed inset-x-0 bottom-0 top-16 z-40 lg:hidden ${
           isOpen ? "pointer-events-auto" : "pointer-events-none"

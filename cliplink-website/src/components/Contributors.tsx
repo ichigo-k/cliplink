@@ -39,7 +39,7 @@ export default function Contributors() {
         if (alive && Array.isArray(data) && data.length) setPeople(data);
       })
       .catch(() => {
-        /* offline or rate-limited — the seed list stands in */
+        /* offline or rate-limited, so the seed list stands in */
       })
       .finally(() => alive && setLoading(false));
     return () => {

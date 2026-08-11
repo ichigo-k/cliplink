@@ -78,7 +78,7 @@ function fallback(version = "latest"): ReleaseInfo {
     const builds = Object.fromEntries(
         PLATFORM_ORDER.map((id) => [
             id,
-            { ...META[id], file: "—", href: releasePage, size: 0 },
+            { ...META[id], file: "n/a", href: releasePage, size: 0 },
         ])
     ) as Record<PlatformId, ResolvedBuild>;
     return { version, publishedAt: "", releasePage, builds };
@@ -114,7 +114,7 @@ export async function fetchLatestRelease(): Promise<ReleaseInfo> {
                     id,
                     {
                         ...META[id],
-                        file: asset?.name ?? "—",
+                        file: asset?.name ?? "n/a",
                         href: asset?.browser_download_url ?? releasePage,
                         size: asset?.size ?? 0,
                     } satisfies ResolvedBuild,

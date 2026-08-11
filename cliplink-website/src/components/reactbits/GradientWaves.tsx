@@ -199,7 +199,7 @@ export default function GradientWaves({
     const container = containerRef.current;
     if (!container) return;
 
-    // The shaders are `#version 300 es`, so there is no WebGL1 fallback path —
+    // The shaders are `#version 300 es`, so there is no WebGL1 fallback path.
     // if WebGL2 is unavailable, leave the container empty and let whatever is
     // layered behind it stand on its own.
     const probe = document.createElement("canvas");
@@ -303,7 +303,7 @@ export default function GradientWaves({
       raf = requestAnimationFrame(loop);
     };
 
-    // Only ever paint while on screen and on the foreground tab — a raymarched
+    // Only ever paint while on screen and on the foreground tab. A raymarched
     // full-screen shader is far too expensive to leave running otherwise.
     const tryStart = () => {
       if (reduced) return;

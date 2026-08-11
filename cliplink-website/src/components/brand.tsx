@@ -1,5 +1,5 @@
 /**
- * Shared brand marks. The logo is a link glyph built from two clipped brackets —
+ * Shared brand marks. The logo is a link glyph built from two clipped brackets:
  * drawn once here so the header, footer and OG-adjacent surfaces never drift.
  */
 

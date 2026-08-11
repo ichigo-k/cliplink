@@ -18,7 +18,7 @@ const ITEMS = NAV.map((n) => ({ label: n.label, index: n.index }));
 /**
  * A proximity-reactive index of the page, parked in the left margin. It only
  * appears once the viewport is wide enough to hold it clear of the content
- * column, and it mirrors — rather than replaces — the header nav.
+ * column, and it mirrors, rather than replaces, the header nav.
  */
 export default function SectionRail() {
   const [active, setActive] = useState<number | null>(null);
@@ -51,7 +51,7 @@ export default function SectionRail() {
 
   return (
     // At 2xl the page margin plus the shell's own inline padding leaves room for
-    // the rail — labels and their hover shift included — clear of the text.
+    // the rail, labels and their hover shift included, clear of the text.
     <div className="pointer-events-none fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 2xl:block">
       <div className="pointer-events-auto">
         <LineSidebar

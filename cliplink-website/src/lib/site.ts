@@ -3,7 +3,7 @@ export const SITE = {
   issues: "https://github.com/ichigo-k/cliplink/issues",
   releases: "https://github.com/ichigo-k/cliplink/releases/latest",
   contribution: "/contribution",
-  /** Fallback only — the live version comes from `fetchLatestRelease()`. */
+  /** Fallback only. The live version comes from `fetchLatestRelease()`. */
   version: "v0.1.19",
 } as const;
 

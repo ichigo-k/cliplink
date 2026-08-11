@@ -3,7 +3,7 @@
   bottom: 0;
   right: 0;
   /* The stack is anchored to the bottom-right of its stage and allowed to spill
-     a little past it — less than the upstream 5%/20% so it stays inside a
+     a little past it, less than the upstream 5%/20% so it stays inside a
      section's vertical padding instead of colliding with the next band. */
   transform: translate(3%, 8%);
   transform-origin: bottom right;

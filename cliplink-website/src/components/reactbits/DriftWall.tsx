@@ -45,7 +45,7 @@ export interface DriftWallProps {
   turn?: number;
   /** In-plane rotation (rotateZ, degrees). */
   roll?: number;
-  /** Perspective distance in px — smaller is more dramatic. */
+  /** Perspective distance in px. Smaller is more dramatic. */
   perspective?: number;
   /** How far the wall sits back from the viewer, in px. */
   depth?: number;

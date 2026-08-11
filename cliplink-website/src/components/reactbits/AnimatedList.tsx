@@ -48,7 +48,7 @@ export interface AnimatedListProps<T> {
   getKey?: (item: T, index: number) => string | number;
   onItemSelect?: (item: T, index: number) => void;
   showGradients?: boolean;
-  /** Arrow / Enter navigation, scoped to the list — it never hijacks page keys. */
+  /** Arrow / Enter navigation, scoped to the list. It never hijacks page keys. */
   enableArrowNavigation?: boolean;
   className?: string;
   displayScrollbar?: boolean;
@@ -63,7 +63,7 @@ export interface AnimatedListProps<T> {
   fadeColor?: string;
   /**
    * Fraction of a row that must be visible before it animates in. Keep this low
-   * for a list inside a short scroller — at 0.5 a row taller than half the
+   * for a list inside a short scroller. At 0.5 a row taller than half the
    * visible area can never qualify and stays hidden.
    */
   amount?: number;
@@ -119,7 +119,7 @@ export default function AnimatedList<T>({
   );
 
   // Both fades are derived from scroll position, so a list that does not
-  // overflow — or has not been scrolled yet — shows neither.
+  // overflow, or has not been scrolled yet, shows neither.
   const measureFades = useCallback(() => {
     const el = listRef.current;
     if (!el) return;

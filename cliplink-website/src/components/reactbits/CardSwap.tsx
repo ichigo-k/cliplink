@@ -118,7 +118,7 @@ export default function CardSwap({
       placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, refs.length), skewAmount)
     );
 
-    // With reduced motion the stack still reads as a stack — it just stops
+    // With reduced motion the stack still reads as a stack. It just stops
     // shuffling itself.
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 

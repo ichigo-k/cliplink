@@ -66,7 +66,7 @@ const PILLARS = [
   },
 ];
 
-/** Tiny token colouriser — enough for JSON and a short TS snippet. */
+/** Tiny token colouriser, enough for JSON and a short TS snippet. */
 function highlight(code: string) {
   const pattern =
     /(\/\/[^\n]*)|("(?:[^"\\]|\\.)*")|(\b\d+\b)|(\b(?:const|function|return|if|new|Set|setTimeout|string|void)\b)/g;
@@ -125,7 +125,7 @@ export default function SecurityDeepDive() {
               <Accent>hostile</Accent>.
             </>
           }
-          blurb="Café wifi, a shared router, a colleague's laptop — all treated the same. Authenticate, encrypt, trust nothing else."
+          blurb="Café wifi, a shared router, a colleague's laptop: all treated the same. Authenticate, encrypt, trust nothing else."
         />
 
         <div className="mt-10 grid gap-10 sm:mt-16 lg:grid-cols-12 lg:gap-14">

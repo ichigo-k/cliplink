@@ -41,7 +41,7 @@ export default function GradientText({
 }: GradientTextProps) {
   const [hoverPaused, setHoverPaused] = useState(false);
   // The stylesheet drops the gradient entirely under reduced motion, so there
-  // is nothing for the frame loop to drive — stop it rather than spin it.
+  // is nothing for the frame loop to drive, so stop it rather than spin it.
   const reduced = useReducedMotion();
   const isPaused = hoverPaused || Boolean(reduced);
   const progress = useMotionValue(0);

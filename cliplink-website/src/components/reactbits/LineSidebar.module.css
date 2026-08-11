@@ -28,7 +28,7 @@
 }
 
 /* --effect (0..1) is eased per item by a rAF lerp in JS, so colour, shift and
-   scale all read the same continuously-moving value and stay in step — no CSS
+   scale all read the same continuously-moving value and stay in step, with no CSS
    transitions to stagger against each other. */
 .item {
   position: relative;

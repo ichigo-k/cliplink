@@ -28,7 +28,7 @@ const FEATURES = [
   {
     icon: Zap,
     title: "Auto-sync clipboard",
-    body: "Copy anything on either device and it lands on the other instantly. No tapping, no sharing — the accessibility service watches for changes.",
+    body: "Copy anything on either device and it lands on the other instantly. No tapping, no sharing. The accessibility service watches for changes.",
     tag: "BACKGROUND",
   },
   {
@@ -64,7 +64,7 @@ const FEATURES = [
   {
     icon: Wifi,
     title: "Network-aware reconnect",
-    body: "Switch Wi-Fi networks and ClipLink finds your PC again in seconds via mDNS — no stored IP required.",
+    body: "Switch Wi-Fi networks and ClipLink finds your PC again in seconds via mDNS. No stored IP required.",
     tag: "mDNS",
   },
   {
@@ -137,7 +137,7 @@ export default function Features() {
               <Accent>without the cloud.</Accent>
             </>
           }
-          blurb="Clipboard, images, files, notifications, URLs — all of it over your own network, encrypted."
+          blurb="Clipboard, images, files, notifications, URLs: all of it over your own network, encrypted."
         />
 
         <div className="feature-grid mt-10 grid sm:mt-16 grid-cols-1 border-t border-l hairline sm:grid-cols-2 lg:grid-cols-3">

@@ -30,7 +30,7 @@ const CARDS = [
     icon: Bell,
     tag: "notification",
     title: "Mirror a notification",
-    body: "GitHub — Your PR was merged.",
+    body: "GitHub: Your PR was merged.",
     meta: "2-way · dismiss syncs both",
   },
 ];
@@ -95,7 +95,7 @@ export default function Spotlight() {
 
           {/* Stage the stack anchors to its bottom-right. Kept tall enough that
               the cards clear the section's own padding, and inset from the right
-              on narrow screens so the receding cards — which step rightwards —
+              on narrow screens so the receding cards, which step rightwards,
               don't run off the edge. */}
           <div className="relative me-16 h-[280px] sm:me-14 sm:h-[340px] lg:me-8 lg:h-[400px]">
             <CardSwap

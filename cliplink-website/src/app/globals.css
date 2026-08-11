@@ -10,7 +10,7 @@
   --font-sans: var(--font-inter), sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 
-  /* Signal green — the only accent on the site */
+  /* Signal green, the only accent on the site */
   --color-signal-50: #e6fff3;
   --color-signal-100: #c2ffe3;
   --color-signal-200: #86ffc8;
@@ -23,7 +23,7 @@
   --color-signal-900: #0a4a2f;
   --color-signal-950: #03291a;
 
-  /* Neutrals — slightly green-shifted so the accent feels native, not pasted on */
+  /* Neutrals, slightly green-shifted so the accent feels native, not pasted on */
   --color-ink-50: #f4f6f5;
   --color-ink-100: #e3e7e5;
   --color-ink-200: #c3cac7;
@@ -159,7 +159,7 @@ body {
   text-transform: uppercase;
 }
 
-/* Hairline rules — the site is built out of these instead of card borders */
+/* Hairline rules. The site is built out of these instead of card borders */
 @utility hairline {
   border-color: var(--hairline);
 }
