@@ -33,6 +33,8 @@
       "intentFilters": []
     },
     "plugins": [
+      "./plugins/withNativeSources",
+      "./plugins/withClipboardPackage",
       "./plugins/withBackgroundService",
       "./plugins/withShareActivity",
       "./plugins/withAccessibilityService",

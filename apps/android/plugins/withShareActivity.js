@@ -12,10 +12,89 @@
  *
  * Using a plugin (rather than editing AndroidManifest.xml by hand) means the
  * fix survives every `expo prebuild` / `expo run:android` rebuild.
+ *
+ * The alias is only half the feature: MainActivity has to actually read the
+ * incoming SEND intent. Prebuild rewrites MainActivity.kt from a template, so
+ * that half is injected here too (see withShareIntentHandling below).
  */
-const { withAndroidManifest } = require('@expo/config-plugins');
+const { withAndroidManifest, withMainActivity } = require('@expo/config-plugins');
 
-module.exports = function withShareActivity(config) {
+/** Marker used to keep the Kotlin injection idempotent across prebuilds. */
+const HANDLER_MARKER = 'private fun extractSharedText';
+
+const HANDLER_KOTLIN = `
+  /**
+   * Pass incoming SEND intent text to the JS bundle as an initial prop
+   * ("sharedText"). Covers a fresh launch from the share sheet.
+   */
+  override fun getLaunchOptions(): Bundle? {
+    val text = extractSharedText(intent) ?: return null
+    return Bundle().apply { putString("sharedText", text) }
+  }
+
+  /**
+   * When ClipLink is already running (singleTask), Android routes new intents
+   * here instead of onCreate, so emit a JS event the running app can pick up.
+   */
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    val text = extractSharedText(intent) ?: return
+    reactInstanceManager
+      ?.currentReactContext
+      ?.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+      ?.emit("onSharedText", text)
+  }
+
+  private fun extractSharedText(intent: Intent?): String? =
+    intent
+      ?.takeIf { it.action == Intent.ACTION_SEND && it.type == "text/plain" }
+      ?.getStringExtra(Intent.EXTRA_TEXT)
+      ?.takeIf { it.isNotBlank() }
+`;
+
+const REQUIRED_IMPORTS = [
+    'import android.content.Intent',
+    'import com.facebook.react.modules.core.DeviceEventManagerModule',
+];
+
+/** Injects the SEND-intent plumbing into the generated MainActivity.kt. */
+function withShareIntentHandling(config) {
+    return withMainActivity(config, (config) => {
+        let contents = config.modResults.contents;
+
+        if (contents.includes(HANDLER_MARKER)) {
+            return config;
+        }
+
+        for (const line of REQUIRED_IMPORTS) {
+            if (!contents.includes(line)) {
+                // Anchor on the package declaration so imports land in a valid spot
+                // regardless of what the template's import block looks like.
+                contents = contents.replace(
+                    /^(package .+\n)/m,
+                    `$1\n${line}\n`
+                );
+            }
+        }
+
+        // Append the methods just before the class's closing brace.
+        const lastBrace = contents.lastIndexOf('}');
+        if (lastBrace === -1) {
+            throw new Error(
+                '[withShareActivity] MainActivity.kt has no closing brace to append to. ' +
+                'Refusing to continue — the share sheet would appear but do nothing.'
+            );
+        }
+
+        contents =
+            contents.slice(0, lastBrace) + HANDLER_KOTLIN + contents.slice(lastBrace);
+
+        config.modResults.contents = contents;
+        return config;
+    });
+}
+
+function withShareManifest(config) {
     return withAndroidManifest(config, (config) => {
         const manifest = config.modResults;
         const app = manifest.manifest.application[0];
@@ -74,4 +153,8 @@ module.exports = function withShareActivity(config) {
 
         return config;
     });
+}
+
+module.exports = function withShareActivity(config) {
+    return withShareIntentHandling(withShareManifest(config));
 };

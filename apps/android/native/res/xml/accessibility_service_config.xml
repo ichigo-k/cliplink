@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Accessibility service configuration for ClipLink's clipboard watcher.
+
+  We declare the absolute minimum capabilities needed:
+  - typeAllMask scoped to TYPE_CLIPBOARD_CHANGED only (set at runtime in
+    onServiceConnected so older API levels that lack the constant don't crash)
+  - No canRetrieveWindowContent — we never inspect UI elements
+  - No canPerformGestures / canRequestTouchExplorationMode
+  - canRequestFilterKeyEvents = false
+
+  The description string shown to the user on the settings screen explains
+  exactly what the service does and does not do.
+-->
+<accessibility-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags=""
+    android:canRetrieveWindowContent="false"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="100"
+    android:settingsActivity="" />
