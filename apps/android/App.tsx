@@ -33,6 +33,7 @@ import {
   isAccessibilityServiceEnabled,
   openAccessibilitySettings,
   onClipboardChanged,
+  onClipboardImageChanged,
 } from './src/clipboardService';
 import {
   isNotificationListenerEnabled,
@@ -58,6 +59,9 @@ import { C } from './src/theme';
  * clip can be a full document's worth of text.
  */
 const MAX_PENDING_CLIPS = 20;
+
+/** How long after writing a received image we treat clipboard events as our own. */
+const SELF_WRITE_GRACE_MS = 2500;
 
 const IDENTITY_KEY = 'cliplink.identity';
 const OFFER_KEY = 'cliplink.offer';
@@ -104,6 +108,17 @@ export default function App() {
    * either way, but replaying everything is what keeps the history honest.
    */
   const pendingClips = useRef<string[]>([]);
+  /**
+   * Timestamp until which an incoming clipboard image is ours, not the user's.
+   *
+   * Applying an image from the PC writes to the system clipboard, which makes
+   * the accessibility service fire as though the user had copied it. Text is
+   * caught exactly by comparing against lastSentRef, but an image does not
+   * survive the round trip byte-identical, since Android re-encodes it, so
+   * neither that check nor the desktop's content-hash suppressor can catch the
+   * bounce. A brief window after our own write is the guard that does work.
+   */
+  const selfWriteUntilRef = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // In-progress file transfers from PC: transferId → { chunks, total, fileName, mimeType }
   const fileBuffers = useRef<Map<string, {
@@ -214,6 +229,31 @@ export default function App() {
     return unsub;
   }, []);
 
+  /* ── Same, for screenshots and copied images ── */
+  useEffect(() => {
+    const unsub = onClipboardImageChanged((image) => {
+      const drop = () => FileSystem.deleteAsync(image.path, { idempotent: true }).catch(() => { });
+
+      const c = client.current;
+      if (!c || Date.now() < selfWriteUntilRef.current) { drop(); return; }
+      if (image.size > MAX_SHARE_BYTES) { drop(); return; }
+
+      // The native side has already copied the bytes somewhere we own, so this
+      // read cannot be raced by the source app revoking its grant.
+      FileSystem.readAsStringAsync(image.path, { encoding: FileSystem.EncodingType.Base64 })
+        .then((b64) => {
+          if (b64 === lastSentRef.current) return;
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          if (c.sendImage(bytes)) lastSentRef.current = b64;
+        })
+        .catch(() => { /* an unreadable copy is not worth surfacing */ })
+        .finally(drop);
+    });
+    return unsub;
+  }, []);
+
   /* ── Hardware back closes a sub-screen rather than quitting the app ── */
   useEffect(() => {
     if (!showSettings && !scanning) return;
@@ -258,6 +298,9 @@ export default function App() {
         }
       },
       onClip: async (text) => {
+        // Text survives the round trip byte-for-byte, so remembering it is an
+        // exact guard against the write below bouncing straight back.
+        lastSentRef.current = text;
         try { await Clipboard.setStringAsync(text); } catch { /* best effort */ }
         // Auto-open URLs that come from the PC
         const trimmed = text.trim();
@@ -272,6 +315,7 @@ export default function App() {
         showToast('Clipboard synced from PC ✓', 'info');
       },
       onImageClip: async (pngBase64) => {
+        selfWriteUntilRef.current = Date.now() + SELF_WRITE_GRACE_MS;
         try {
           const path = `${FileSystem.cacheDirectory}cliplink_incoming.png`;
           await FileSystem.writeAsStringAsync(path, pngBase64, {
