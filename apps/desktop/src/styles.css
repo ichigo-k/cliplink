@@ -1668,15 +1668,23 @@ main {
 /* ─── Toast window ──────────────────────────────────────────────────────────
  *
  * The window is transparent and sized to the stack, so anything not covered by
- * a card must stay click-through — hence pointer-events discipline here.
+ * a card must stay click-through, hence the pointer-events discipline here.
  * Toasts anchored to the top grow downward; bottom-anchored ones grow upward,
- * so the newest card always sits nearest the screen edge it came from.
+ * so the newest card always sits nearest the screen edge it came from and the
+ * stack ages away from the corner rather than marching towards it.
+ *
+ * --toast-accent and --toast-accent-soft are set per card from Toasts.tsx, so
+ * a WhatsApp message and a calendar reminder can carry their own colour.
  */
 
 .toast-root {
+  /* Transparent breathing room so the cards' shadows are not clipped by the
+     window, which is sized to its contents. Must match GUTTER in Toasts.tsx. */
+  --toast-gutter: 28px;
+
   width: 100%;
   height: 100%;
-  padding: 8px;
+  padding: var(--toast-gutter);
   pointer-events: none;
   display: flex;
 }
@@ -1686,84 +1694,173 @@ main {
 
 .toast-stack {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
 }
 
-.toast-root[data-position^="bottom"] .toast-stack {
-  flex-direction: column-reverse;
-}
+/* The newest card sits nearest the edge the stack is anchored to, so it lands
+   where the eye already is and older ones drift away to expire. The array runs
+   oldest to newest, which makes the top-anchored case the reversed one. */
+.toast-root[data-position^="top"] .toast-stack { flex-direction: column-reverse; }
+.toast-root[data-position^="bottom"] .toast-stack { flex-direction: column; }
 
 .toast {
+  /* Overridden per card from Toasts.tsx; this is the fallback. */
+  --toast-accent: var(--accent);
+  --toast-accent-soft: rgba(34, 197, 94, 0.16);
+
   pointer-events: auto;
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 11px 12px;
-  border-radius: 12px;
+  gap: 11px;
+  padding: 13px 14px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-top);
-  background: rgba(28, 28, 28, 0.88);
-  backdrop-filter: blur(20px) saturate(150%);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-  animation: toast-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* Opaque on purpose. The window behind this card is genuinely transparent,
+     so backdrop-filter had nothing to sample: the blur that used to sit here
+     resolved against an empty backdrop and painted a dark slab rather than
+     glass, which is what made the toasts look like they had an overlay. */
+  background: #1F1F1F;
+  box-shadow:
+    0 6px 22px rgba(0, 0, 0, 0.5),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+  animation: toast-in 200ms var(--ease) both;
+}
+
+.toast--leaving {
+  animation: toast-out 160ms var(--ease-out) both;
+  pointer-events: none;
 }
 
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
   to   { opacity: 1; transform: none; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .toast { animation: none; }
+/* Scale rather than slide, so the exit reads the same from all six anchors. */
+@keyframes toast-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: scale(0.96); }
 }
 
-/* A thin accent edge keeps the three kinds distinguishable at a glance. */
-.toast--notification { border-left: 3px solid var(--accent); }
-.toast--file { border-left: 3px solid #60A5FA; }
-.toast--link { border-left: 3px solid #C084FC; }
+@media (prefers-reduced-motion: reduce) {
+  /* Not `none`: the exit still has to finish for the card to be unmounted. */
+  .toast,
+  .toast--leaving { animation-duration: 1ms; }
+}
 
 .toast__icon {
-  font-size: 15px;
-  line-height: 1.3;
   flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--toast-accent);
+  background: var(--toast-accent-soft);
 }
 
-.toast__body {
+.toast__main {
   flex: 1;
   min-width: 0;
+  /* Keeps the text clear of the close button in the corner. */
+  padding-right: 18px;
+}
+
+/* Headline and its small print share a line, with the headline taking whatever
+   room is left after the app name rather than the two competing for it. */
+.toast__head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 3px;
 }
 
 .toast__title {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text);
-  margin-bottom: 2px;
+  /* A long sender name should not shove the app label off the card. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast__meta {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--toast-accent);
+  opacity: 0.85;
+  white-space: nowrap;
 }
 
 .toast__text {
   font-size: 12px;
   color: var(--text-2);
-  line-height: 1.35;
+  line-height: 1.45;
   /* Long links must not stretch the window past its fixed width. */
   overflow-wrap: anywhere;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.toast__action {
-  flex-shrink: 0;
+/* Fixed height on purpose. The window is measured in a layout effect the
+   moment the card renders, which is before a data: URL has decoded, so an
+   auto-height image would be measured at zero and leave the window too short
+   for its own contents. */
+.toast__thumb {
+  display: block;
+  width: 100%;
+  height: 110px;
+  margin-top: 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: var(--surface-input);
+}
+
+/* Says what the MAX_VISIBLE cap is holding back, rather than dropping it
+   silently. Sits behind the cards, furthest from the anchored corner. */
+.toast__overflow {
+  pointer-events: auto;
   align-self: center;
-  padding: 5px 10px;
-  border-radius: 7px;
-  border: 1px solid var(--accent-soft);
-  background: var(--accent-soft);
-  color: var(--accent-light);
-  font-family: var(--font-sans);
+  padding: 4px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border-top);
+  background: #1F1F1F;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.42);
   font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  animation: toast-in 200ms var(--ease) both;
+}
+
+/* Buttons sit under the message rather than beside it. Sharing the row meant
+   the text was squeezed into whatever the longest label left behind. */
+.toast__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.toast__action {
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: var(--toast-accent-soft);
+  color: var(--toast-accent);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -1771,23 +1868,29 @@ main {
 }
 
 .toast__action:hover {
-  background: var(--accent-soft2);
-  border-color: var(--accent);
+  border-color: var(--toast-accent);
 }
 
 .toast__close {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-3);
-  font-size: 10px;
-  line-height: 1;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  opacity: 0.55;
+  transition: background 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.toast:hover .toast__close {
+  opacity: 1;
 }
 
 .toast__close:hover {
