@@ -33,6 +33,7 @@ import {
   isAccessibilityServiceEnabled,
   openAccessibilitySettings,
   onClipboardChanged,
+  onClipboardImageChanged,
 } from './src/clipboardService';
 import {
   isNotificationListenerEnabled,
@@ -50,6 +51,17 @@ import {
 import { SettingsScreen } from './src/SettingsScreen';
 import { useUpdater, type Updater } from './src/useUpdater';
 import { C } from './src/theme';
+
+/**
+ * How many offline clips to hold before the oldest start falling off.
+ *
+ * Bounded because the queue survives an arbitrarily long disconnection and a
+ * clip can be a full document's worth of text.
+ */
+const MAX_PENDING_CLIPS = 20;
+
+/** How long after writing a received image we treat clipboard events as our own. */
+const SELF_WRITE_GRACE_MS = 2500;
 
 const IDENTITY_KEY = 'cliplink.identity';
 const OFFER_KEY = 'cliplink.offer';
@@ -80,6 +92,33 @@ export default function App() {
   const client = useRef<SyncClient | null>(null);
   const handledScan = useRef(false);
   const lastSentRef = useRef('');
+  /**
+   * Clips copied while the socket was down, oldest first.
+   *
+   * send() reports failure by returning false, and we used to drop the clip on
+   * the floor when it did. On a phone that is the common case rather than the
+   * rare one: dozing, a Wi-Fi handover, or the screen going off all break the
+   * socket for a few seconds while the user carries on copying, and every copy
+   * made inside that window was gone for good. Holding them here and flushing
+   * on reconnect is what makes "copy on the phone, paste on the PC" dependable
+   * rather than dependent on the radio.
+   *
+   * Ordered and replayed in full rather than collapsed to the newest, because
+   * the PC keeps clipboard history: the end state of its clipboard is the same
+   * either way, but replaying everything is what keeps the history honest.
+   */
+  const pendingClips = useRef<string[]>([]);
+  /**
+   * Timestamp until which an incoming clipboard image is ours, not the user's.
+   *
+   * Applying an image from the PC writes to the system clipboard, which makes
+   * the accessibility service fire as though the user had copied it. Text is
+   * caught exactly by comparing against lastSentRef, but an image does not
+   * survive the round trip byte-identical, since Android re-encodes it, so
+   * neither that check nor the desktop's content-hash suppressor can catch the
+   * bounce. A brief window after our own write is the guard that does work.
+   */
+  const selfWriteUntilRef = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // In-progress file transfers from PC: transferId → { chunks, total, fileName, mimeType }
   const fileBuffers = useRef<Map<string, {
@@ -145,15 +184,72 @@ export default function App() {
     return () => { unsubPosted(); unsubRemoved(); };
   }, []);
 
+  /**
+   * Pushes the backlog, keeping anything the socket still will not take.
+   *
+   * Called on every transition to connected, which the client emits directly
+   * after deriving the session key, so send() has everything it needs by then.
+   */
+  const flushPendingClips = useCallback(() => {
+    const c = client.current;
+    if (!c || pendingClips.current.length === 0) return;
+
+    const queued = pendingClips.current;
+    pendingClips.current = [];
+    for (let i = 0; i < queued.length; i++) {
+      if (!c.send(queued[i])) {
+        // The socket went away again mid-flush. Keep the remainder, including
+        // the one that just failed, for the next time we come up.
+        pendingClips.current = queued.slice(i);
+        return;
+      }
+      lastSentRef.current = queued[i];
+    }
+  }, []);
+
   /* ── Auto-sync from accessibility service clipboard events ── */
   useEffect(() => {
     const unsub = onClipboardChanged((text) => {
-      const c = client.current;
-      if (!c || !text || text === lastSentRef.current) return;
-      if (c.send(text)) {
+      if (!text || text === lastSentRef.current) return;
+
+      // Silent on success, so it does not interrupt whatever the user is doing.
+      if (client.current?.send(text)) {
         lastSentRef.current = text;
-        // Silent sync — no toast so it doesn't interrupt whatever the user is doing
+        return;
       }
+
+      // Not connected. Hold it rather than lose it.
+      const queue = pendingClips.current;
+      if (queue[queue.length - 1] === text) return; // same clip, fired twice
+      queue.push(text);
+      if (queue.length > MAX_PENDING_CLIPS) {
+        queue.splice(0, queue.length - MAX_PENDING_CLIPS);
+      }
+    });
+    return unsub;
+  }, []);
+
+  /* ── Same, for screenshots and copied images ── */
+  useEffect(() => {
+    const unsub = onClipboardImageChanged((image) => {
+      const drop = () => FileSystem.deleteAsync(image.path, { idempotent: true }).catch(() => { });
+
+      const c = client.current;
+      if (!c || Date.now() < selfWriteUntilRef.current) { drop(); return; }
+      if (image.size > MAX_SHARE_BYTES) { drop(); return; }
+
+      // The native side has already copied the bytes somewhere we own, so this
+      // read cannot be raced by the source app revoking its grant.
+      FileSystem.readAsStringAsync(image.path, { encoding: FileSystem.EncodingType.Base64 })
+        .then((b64) => {
+          if (b64 === lastSentRef.current) return;
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          if (c.sendImage(bytes)) lastSentRef.current = b64;
+        })
+        .catch(() => { /* an unreadable copy is not worth surfacing */ })
+        .finally(drop);
     });
     return unsub;
   }, []);
@@ -193,6 +289,8 @@ export default function App() {
             SecureStore.setItemAsync(LAST_HOST_KEY, h).catch(() => { });
           }
           updateBackgroundStatus('connected', s.deviceName);
+          // Anything copied while we were down goes out now.
+          flushPendingClips();
         } else if (s.state === 'connecting') {
           updateBackgroundStatus('connecting');
         } else if (s.state === 'error') {
@@ -200,6 +298,9 @@ export default function App() {
         }
       },
       onClip: async (text) => {
+        // Text survives the round trip byte-for-byte, so remembering it is an
+        // exact guard against the write below bouncing straight back.
+        lastSentRef.current = text;
         try { await Clipboard.setStringAsync(text); } catch { /* best effort */ }
         // Auto-open URLs that come from the PC
         const trimmed = text.trim();
@@ -214,6 +315,7 @@ export default function App() {
         showToast('Clipboard synced from PC ✓', 'info');
       },
       onImageClip: async (pngBase64) => {
+        selfWriteUntilRef.current = Date.now() + SELF_WRITE_GRACE_MS;
         try {
           const path = `${FileSystem.cacheDirectory}cliplink_incoming.png`;
           await FileSystem.writeAsStringAsync(path, pngBase64, {
@@ -285,7 +387,7 @@ export default function App() {
       // closed) or the user unpairs. Not on disconnect/error.
       stopBackgroundSync();
     };
-  }, [offer, identity, showToast]);
+  }, [offer, identity, showToast, flushPendingClips]);
 
   /* ── Auto-send on foreground ── */
   const tryAutoSend = useCallback(async () => {
