@@ -582,6 +582,17 @@ fn open_main(app: &tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be the first plugin registered: it decides whether this process
+        // has any business continuing at all, and that answer should not depend
+        // on how much of the app happened to be initialised before it ran.
+        //
+        // ClipLink lives in the tray with its main window hidden, so launching
+        // it again is never a request for a second copy — it is someone looking
+        // for the copy they already have. Surface that one and let this process
+        // die; the plugin exits it as soon as this callback returns.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            open_main(app);
+        }))
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
