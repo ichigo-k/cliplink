@@ -94,6 +94,7 @@ export default function App() {
   const [copied, setCopied] = useState('');
   const [recording, setRecording] = useState(false);
   const [hotkeyError, setHotkeyError] = useState('');
+  const [startupError, setStartupError] = useState('');
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -231,10 +232,16 @@ export default function App() {
   // ─── New feature commands ────────────────────────────────────────────────
 
   async function toggleStartup(enabled: boolean) {
+    setStartupError('');
     try {
       await invoke('set_launch_at_startup', { enabled });
-      setSettings(s => s ? { ...s, launchAtStartup: enabled } : s);
-    } catch { /* silently ignore */ }
+    } catch (err) {
+      setStartupError(String(err));
+    }
+    // Re-read instead of assuming the click won. get_settings reports the state
+    // Windows is actually in, so a write that failed leaves the toggle showing
+    // the truth rather than the intention.
+    refreshSettings();
   }
 
   async function changeHistoryLimit(limit: number) {
@@ -683,6 +690,7 @@ export default function App() {
                   <p className="muted" style={{ fontSize: 13 }}>
                     Start ClipLink automatically when Windows boots.
                   </p>
+                  {startupError && <p className="error">{startupError}</p>}
                 </div>
                 <button
                   className={`toggle ${settings?.launchAtStartup ? 'on' : ''}`}
