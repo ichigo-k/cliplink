@@ -224,9 +224,33 @@ struct SettingsView {
     history_limit: usize,
 }
 
+/// Writes the autostart preference through to the OS.
+///
+/// Enabling deliberately re-asserts rather than checking `is_enabled()` first.
+/// That check answers "is there a registry value under this name", never "does
+/// it point at anything that still exists", so a Run entry left behind by an
+/// earlier install location reports itself as enabled while launching nothing
+/// at boot — and the old reconcile logic then skipped it as already correct.
+/// Writing it again is the repair: `enable()` overwrites the entry with the
+/// path of the binary that is running right now.
+///
+/// Disabling still has to check, because it deletes the value and errors when
+/// there is nothing there to delete.
+fn apply_autostart(app: &tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    let autostart = app.autolaunch();
+    if enabled {
+        autostart.enable()
+    } else if autostart.is_enabled().unwrap_or(false) {
+        autostart.disable()
+    } else {
+        Ok(())
+    }
+    .map_err(|e| format!("Could not update the Windows startup entry: {e}"))
+}
+
 #[tauri::command]
-fn get_settings(app: State<'_, App>) -> Result<SettingsView, String> {
-    let s = app
+fn get_settings(app: tauri::AppHandle, state: State<'_, App>) -> Result<SettingsView, String> {
+    let s = state
         .server
         .settings
         .lock()
@@ -235,7 +259,10 @@ fn get_settings(app: State<'_, App>) -> Result<SettingsView, String> {
         hotkey: s.hotkey.clone(),
         device_name: s.device_name.clone(),
         paired_devices: s.paired_devices.clone(),
-        launch_at_startup: s.launch_at_startup,
+        // Report what the OS will actually do, not what we asked it to do. If
+        // the registry write failed or was undone from Task Manager, the toggle
+        // has to show that instead of the stored wish.
+        launch_at_startup: app.autolaunch().is_enabled().unwrap_or(s.launch_at_startup),
         history_limit: s.history_limit,
     })
 }
@@ -278,12 +305,10 @@ fn set_launch_at_startup(
     state: State<'_, App>,
     enabled: bool,
 ) -> Result<(), String> {
-    let autostart = app.autolaunch();
-    if enabled {
-        autostart.enable().map_err(|e| e.to_string())?;
-    } else {
-        autostart.disable().map_err(|e| e.to_string())?;
-    }
+    // Register with the OS first. If that fails there is nothing worth saving:
+    // storing the preference anyway is what let the toggle claim to be on while
+    // Windows knew nothing about it.
+    apply_autostart(&app, enabled)?;
     let mut s = state
         .server
         .settings
@@ -843,13 +868,11 @@ pub fn run() {
                 Err(_) => eprintln!("ClipLink: '{hotkey}' is not a valid shortcut."),
             }
 
-            // Honour the stored autostart preference on every launch.
-            let autostart = app.autolaunch();
-            let is_enabled = autostart.is_enabled().unwrap_or(false);
-            if launch_at_startup && !is_enabled {
-                let _ = autostart.enable();
-            } else if !launch_at_startup && is_enabled {
-                let _ = autostart.disable();
+            // Re-assert the stored autostart preference on every launch, which
+            // is also what keeps the registered path pointing at this binary
+            // after an update, a reinstall, or a move to another folder.
+            if let Err(e) = apply_autostart(app.handle(), launch_at_startup) {
+                eprintln!("ClipLink: {e}");
             }
 
             // Tray
