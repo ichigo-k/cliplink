@@ -6,10 +6,10 @@
  * Downloads, or a link someone copied.
  *
  * WHY ITS OWN WINDOW:
- * The main window is usually hidden — ClipLink lives in the tray — so toasts
- * cannot render inside it. The overlay is the paste flyout and is driven by the
- * hotkey, so it cannot be borrowed either. This window exists solely to be shown
- * for a few seconds at a time.
+ * The main window is usually hidden, since ClipLink lives in the tray, so
+ * toasts cannot render inside it. The overlay is the paste flyout and is driven
+ * by the hotkey, so it cannot be borrowed either. This window exists solely to
+ * be shown for a few seconds at a time.
  *
  * WHY IT RESIZES ITSELF:
  * The window is only as tall as the stack of visible toasts, so the transparent
@@ -19,7 +19,7 @@
  *
  * WHY THERE IS A GUTTER:
  * Sizing the window to its content means anything a card paints outside its own
- * box gets cut off at the window edge — and a clipped drop shadow stops looking
+ * box gets cut off at the window edge, and a clipped drop shadow stops looking
  * like a shadow and starts looking like a grey slab behind the toast. GUTTER is
  * the transparent margin that gives the shadow somewhere to fall.
  */
@@ -27,7 +27,21 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { listen, emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow, currentMonitor, LogicalSize, LogicalPosition } from '@tauri-apps/api/window';
-import { Bell, FileDown, Link2, X } from 'lucide-react';
+import {
+  Bell,
+  CalendarDays,
+  Camera,
+  FileDown,
+  Hash,
+  Link2,
+  Mail,
+  MessageCircle,
+  MessageSquare,
+  Phone,
+  Send,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   loadToastPrefs,
   type ToastPrefs,
@@ -36,23 +50,20 @@ import {
 } from './toastPrefs';
 import { formatBytes, type PhoneNotification, type FileReceived, type ClipEntry } from './types';
 
-type ToastKind = 'notification' | 'file' | 'link';
-
 type Toast = {
   id: number;
-  kind: ToastKind;
+  /** Headline: who sent it, or what happened. */
   title: string;
+  /** Small print beside the headline: the app it came from, a file size. */
+  meta?: string;
   body: string;
-  /** Shown as a button when the toast carries something actionable. */
+  icon: LucideIcon;
+  /** Hex colour for the icon chip, so each source is recognisable at a glance. */
+  accent: string;
+  /** Shown as a button under the text when the toast carries something actionable. */
   action?: { label: string; run: () => void };
   /** Set while the card plays its exit animation, just before it is removed. */
   leaving?: boolean;
-};
-
-const ICONS: Record<ToastKind, typeof Bell> = {
-  notification: Bell,
-  file: FileDown,
-  link: Link2,
 };
 
 /** Distance from the screen edge to the visible card, in logical pixels. */
@@ -67,6 +78,56 @@ const CARD_WIDTH = 360;
 const GUTTER = 28;
 /** Must match the toast-out animation in styles.css. */
 const EXIT_MS = 160;
+
+const DEFAULT_ACCENT = '#22C55E';
+const FILE_ACCENT = '#60A5FA';
+const LINK_ACCENT = '#C084FC';
+
+/**
+ * Presentation rules for mirrored phone notifications.
+ *
+ * Without these every notification is the same grey row wearing the same bell,
+ * and a message from a person reads exactly like a calendar reminder. Each
+ * entry gives a source its own icon, colour and display name, so a card is
+ * recognisable before any of its text has been read.
+ *
+ * Matched against the package name first because that is the stable half: the
+ * display name changes with the phone's language, "WhatsApp Business" exists,
+ * and OEM skins rename things.
+ */
+type AppTemplate = { label: string; accent: string; icon: LucideIcon };
+
+const APP_TEMPLATES: [RegExp, AppTemplate][] = [
+  [/whatsapp/i, { label: 'WhatsApp', accent: '#25D366', icon: MessageCircle }],
+  [/telegram/i, { label: 'Telegram', accent: '#2AABEE', icon: Send }],
+  [/signal/i, { label: 'Signal', accent: '#3A76F0', icon: MessageCircle }],
+  [/slack/i, { label: 'Slack', accent: '#E01E5A', icon: Hash }],
+  [/discord/i, { label: 'Discord', accent: '#5865F2', icon: MessageCircle }],
+  [/instagram/i, { label: 'Instagram', accent: '#E1306C', icon: Camera }],
+  [/messenger|facebook\.orca/i, { label: 'Messenger', accent: '#0084FF', icon: MessageCircle }],
+  [/messaging|\bsms\b|\bmms\b/i, { label: 'Messages', accent: '#4ADE80', icon: MessageSquare }],
+  [/gmail|android\.gm$|outlook|\bmail\b/i, { label: 'Mail', accent: '#EA4335', icon: Mail }],
+  [/calendar/i, { label: 'Calendar', accent: '#F59E0B', icon: CalendarDays }],
+  [/dialer|incallui|\bphone\b/i, { label: 'Phone', accent: '#34D399', icon: Phone }],
+];
+
+function templateFor(n: PhoneNotification): AppTemplate {
+  const haystack = `${n.packageName ?? ''} ${n.appName ?? ''}`;
+  for (const [pattern, template] of APP_TEMPLATES) {
+    if (pattern.test(haystack)) return template;
+  }
+  return { label: n.appName || 'Phone', accent: DEFAULT_ACCENT, icon: Bell };
+}
+
+/**
+ * A translucent wash of the accent, for the icon chip behind it.
+ *
+ * Appending an alpha pair to the hex rather than reaching for color-mix, which
+ * would tie the look to a WebView2 build new enough to support it.
+ */
+function tint(accent: string): string {
+  return `${accent}29`;
+}
 
 /** Hands a URL or file path to the OS. `open_path` covers both. */
 function openWithSystem(target: string): void {
@@ -89,9 +150,9 @@ export default function Toasts() {
   /** True while the pointer is over a card, which holds the countdown. */
   const [paused, setPaused] = useState(false);
   const nextId = useRef(1);
-  /** id → the timeout that will start this toast's exit. */
+  /** id to the timeout that will start this toast's exit. */
   const dismissTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
-  /** id → the timeout that unmounts it once the exit animation has played. */
+  /** id to the timeout that unmounts it once the exit animation has played. */
   const removalTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const stackRef = useRef<HTMLDivElement>(null);
 
@@ -164,21 +225,29 @@ export default function Toasts() {
     const stops = [
       listen<PhoneNotification>('phone_notification', e => {
         const n = e.payload;
+        const template = templateFor(n);
+        const sender = n.title?.trim();
         push({
-          kind: 'notification',
-          title: n.appName || 'Phone',
-          body: [n.title, n.text].filter(Boolean).join(' — ') || 'New notification',
+          icon: template.icon,
+          accent: template.accent,
+          // Lead with whoever sent it. The app name is useful context but it is
+          // not the thing being read, so it drops to the meta line.
+          title: sender || template.label,
+          meta: sender ? template.label : undefined,
+          body: n.text?.trim() || 'New notification',
         });
       }),
 
       listen<FileReceived>('file_received', e => {
         const f = e.payload;
         push({
-          kind: 'file',
-          title: 'File received',
-          body: `${f.fileName} · ${formatBytes(f.size)}`,
+          icon: FileDown,
+          accent: FILE_ACCENT,
+          title: f.fileName,
+          meta: formatBytes(f.size),
+          body: 'Saved to your Downloads folder',
           action: {
-            label: 'Show',
+            label: 'Show in folder',
             run: () => openWithSystem(f.path),
           },
         });
@@ -192,8 +261,10 @@ export default function Toasts() {
         const url = extractUrl(clip.text ?? '');
         if (!url) return;
         push({
-          kind: 'link',
-          title: `Link from ${clip.deviceName || 'your phone'}`,
+          icon: Link2,
+          accent: LINK_ACCENT,
+          title: 'Link copied',
+          meta: clip.deviceName || 'your phone',
           body: url,
           action: {
             label: 'Open in browser',
@@ -266,31 +337,41 @@ export default function Toasts() {
     <div className="toast-root" data-position={prefs.position}>
       <div className="toast-stack" ref={stackRef}>
         {toasts.map(toast => {
-          const Icon = ICONS[toast.kind];
+          const Icon = toast.icon;
           return (
             <div
               key={toast.id}
-              className={`toast toast--${toast.kind}${toast.leaving ? ' toast--leaving' : ''}`}
+              className={`toast${toast.leaving ? ' toast--leaving' : ''}`}
+              style={{
+                '--toast-accent': toast.accent,
+                '--toast-accent-soft': tint(toast.accent),
+              } as React.CSSProperties}
               onMouseEnter={() => setPaused(true)}
               onMouseLeave={() => setPaused(false)}
             >
               <span className="toast__icon" aria-hidden="true">
-                <Icon size={14} strokeWidth={2.25} />
+                <Icon size={15} strokeWidth={2.25} />
               </span>
 
-              <div className="toast__body">
-                <div className="toast__title">{toast.title}</div>
-                <div className="toast__text">{toast.body}</div>
-              </div>
+              <div className="toast__main">
+                <div className="toast__head">
+                  <span className="toast__title">{toast.title}</span>
+                  {toast.meta && <span className="toast__meta">{toast.meta}</span>}
+                </div>
 
-              {toast.action && (
-                <button
-                  className="toast__action"
-                  onClick={() => { toast.action!.run(); dismiss(toast.id); }}
-                >
-                  {toast.action.label}
-                </button>
-              )}
+                <div className="toast__text">{toast.body}</div>
+
+                {toast.action && (
+                  <div className="toast__actions">
+                    <button
+                      className="toast__action"
+                      onClick={() => { toast.action!.run(); dismiss(toast.id); }}
+                    >
+                      {toast.action.label}
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <button
                 className="toast__close"
