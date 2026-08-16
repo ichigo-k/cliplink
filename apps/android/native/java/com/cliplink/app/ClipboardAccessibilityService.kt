@@ -89,10 +89,24 @@ class ClipboardAccessibilityService : AccessibilityService() {
         } ?: return
 
         // Forward to JS via the React bridge if it is available.
+        //
+        // The service outlives the activity, so a clip can arrive long after
+        // the React context it was handed has been torn down. getJSModule
+        // throws in that state, and because this runs inside a clipboard
+        // listener callback the exception takes the listener down with it:
+        // from then on nothing syncs at all until the accessibility service is
+        // toggled off and back on. Check for a live instance first, the way
+        // ShareModule.flushPending already does, and swallow the rest.
         val ctx = reactContext ?: return
-        ctx
-            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            ?.emit("onClipboardChanged", text)
+        if (!ctx.hasActiveReactInstance()) return
+        try {
+            ctx
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                ?.emit("onClipboardChanged", text)
+        } catch (_: Exception) {
+            // A bridge that died between the check and the call is not
+            // something the user can act on.
+        }
     }
 
     companion object {

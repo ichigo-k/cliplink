@@ -51,6 +51,14 @@ import { SettingsScreen } from './src/SettingsScreen';
 import { useUpdater, type Updater } from './src/useUpdater';
 import { C } from './src/theme';
 
+/**
+ * How many offline clips to hold before the oldest start falling off.
+ *
+ * Bounded because the queue survives an arbitrarily long disconnection and a
+ * clip can be a full document's worth of text.
+ */
+const MAX_PENDING_CLIPS = 20;
+
 const IDENTITY_KEY = 'cliplink.identity';
 const OFFER_KEY = 'cliplink.offer';
 const LAST_HOST_KEY = 'cliplink.lastHost';
@@ -80,6 +88,22 @@ export default function App() {
   const client = useRef<SyncClient | null>(null);
   const handledScan = useRef(false);
   const lastSentRef = useRef('');
+  /**
+   * Clips copied while the socket was down, oldest first.
+   *
+   * send() reports failure by returning false, and we used to drop the clip on
+   * the floor when it did. On a phone that is the common case rather than the
+   * rare one: dozing, a Wi-Fi handover, or the screen going off all break the
+   * socket for a few seconds while the user carries on copying, and every copy
+   * made inside that window was gone for good. Holding them here and flushing
+   * on reconnect is what makes "copy on the phone, paste on the PC" dependable
+   * rather than dependent on the radio.
+   *
+   * Ordered and replayed in full rather than collapsed to the newest, because
+   * the PC keeps clipboard history: the end state of its clipboard is the same
+   * either way, but replaying everything is what keeps the history honest.
+   */
+  const pendingClips = useRef<string[]>([]);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // In-progress file transfers from PC: transferId → { chunks, total, fileName, mimeType }
   const fileBuffers = useRef<Map<string, {
@@ -145,14 +169,46 @@ export default function App() {
     return () => { unsubPosted(); unsubRemoved(); };
   }, []);
 
+  /**
+   * Pushes the backlog, keeping anything the socket still will not take.
+   *
+   * Called on every transition to connected, which the client emits directly
+   * after deriving the session key, so send() has everything it needs by then.
+   */
+  const flushPendingClips = useCallback(() => {
+    const c = client.current;
+    if (!c || pendingClips.current.length === 0) return;
+
+    const queued = pendingClips.current;
+    pendingClips.current = [];
+    for (let i = 0; i < queued.length; i++) {
+      if (!c.send(queued[i])) {
+        // The socket went away again mid-flush. Keep the remainder, including
+        // the one that just failed, for the next time we come up.
+        pendingClips.current = queued.slice(i);
+        return;
+      }
+      lastSentRef.current = queued[i];
+    }
+  }, []);
+
   /* ── Auto-sync from accessibility service clipboard events ── */
   useEffect(() => {
     const unsub = onClipboardChanged((text) => {
-      const c = client.current;
-      if (!c || !text || text === lastSentRef.current) return;
-      if (c.send(text)) {
+      if (!text || text === lastSentRef.current) return;
+
+      // Silent on success, so it does not interrupt whatever the user is doing.
+      if (client.current?.send(text)) {
         lastSentRef.current = text;
-        // Silent sync — no toast so it doesn't interrupt whatever the user is doing
+        return;
+      }
+
+      // Not connected. Hold it rather than lose it.
+      const queue = pendingClips.current;
+      if (queue[queue.length - 1] === text) return; // same clip, fired twice
+      queue.push(text);
+      if (queue.length > MAX_PENDING_CLIPS) {
+        queue.splice(0, queue.length - MAX_PENDING_CLIPS);
       }
     });
     return unsub;
@@ -193,6 +249,8 @@ export default function App() {
             SecureStore.setItemAsync(LAST_HOST_KEY, h).catch(() => { });
           }
           updateBackgroundStatus('connected', s.deviceName);
+          // Anything copied while we were down goes out now.
+          flushPendingClips();
         } else if (s.state === 'connecting') {
           updateBackgroundStatus('connecting');
         } else if (s.state === 'error') {
@@ -285,7 +343,7 @@ export default function App() {
       // closed) or the user unpairs. Not on disconnect/error.
       stopBackgroundSync();
     };
-  }, [offer, identity, showToast]);
+  }, [offer, identity, showToast, flushPendingClips]);
 
   /* ── Auto-send on foreground ── */
   const tryAutoSend = useCallback(async () => {
