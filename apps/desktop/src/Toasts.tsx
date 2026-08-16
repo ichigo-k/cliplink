@@ -33,6 +33,7 @@ import {
   Camera,
   FileDown,
   Hash,
+  Image as ImageIcon,
   Link2,
   Mail,
   MessageCircle,
@@ -57,6 +58,8 @@ type Toast = {
   /** Small print beside the headline: the app it came from, a file size. */
   meta?: string;
   body: string;
+  /** data: URL of an image clip, shown instead of describing it in words. */
+  thumbnail?: string;
   icon: LucideIcon;
   /** Hex colour for the icon chip, so each source is recognisable at a glance. */
   accent: string;
@@ -70,8 +73,16 @@ type Toast = {
 const MARGIN = 16;
 /** Kept clear at the bottom so a toast never sits under the Windows taskbar. */
 const TASKBAR_ALLOWANCE = 56;
-/** More than this on screen at once is noise; the oldest fall off. */
+/** More than this on screen at once is noise; the rest are counted, not shown. */
 const MAX_VISIBLE = 4;
+/**
+ * How many toasts stay in state, visible or not.
+ *
+ * Overflow beyond MAX_VISIBLE is held rather than discarded so the stack can
+ * say how much it is not showing. They keep their own timers and drain on
+ * schedule; this cap only stops a long burst growing without bound.
+ */
+const HARD_CAP = 24;
 /** Visible width of a card. */
 const CARD_WIDTH = 360;
 /** Transparent room around the cards. Must match --toast-gutter in styles.css. */
@@ -82,6 +93,7 @@ const EXIT_MS = 160;
 const DEFAULT_ACCENT = '#22C55E';
 const FILE_ACCENT = '#60A5FA';
 const LINK_ACCENT = '#C084FC';
+const IMAGE_ACCENT = '#F472B6';
 
 /**
  * Presentation rules for mirrored phone notifications.
@@ -168,7 +180,7 @@ export default function Toasts() {
 
   const push = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = nextId.current++;
-    setToasts(prev => [...prev, { ...toast, id }].slice(-MAX_VISIBLE));
+    setToasts(prev => [...prev, { ...toast, id }].slice(-HARD_CAP));
   }, []);
 
   /* ── Auto-dismiss, reconciled against what is actually on screen ──
@@ -258,6 +270,20 @@ export default function Toasts() {
         // Only surface clips that came from the phone; the PC's own copies are
         // not news to the person who just made them.
         if (clip.origin === 'local') return;
+
+        // An image is worth showing rather than describing.
+        if (clip.imageDataUrl) {
+          push({
+            icon: ImageIcon,
+            accent: IMAGE_ACCENT,
+            title: 'Image copied',
+            meta: clip.deviceName || 'your phone',
+            body: '',
+            thumbnail: clip.imageDataUrl,
+          });
+          return;
+        }
+
         const url = extractUrl(clip.text ?? '');
         if (!url) return;
         push({
@@ -333,10 +359,24 @@ export default function Toasts() {
     };
   }, []);
 
+  // Only the newest few are drawn. The rest keep their timers and drain on
+  // their own; the pill exists so a burst says how much it is holding back
+  // instead of silently swallowing it.
+  const visible = toasts.slice(-MAX_VISIBLE);
+  const hidden = toasts.length - visible.length;
+
   return (
     <div className="toast-root" data-position={prefs.position}>
       <div className="toast-stack" ref={stackRef}>
-        {toasts.map(toast => {
+        {/* First in the DOM puts this furthest from the anchored corner under
+            both stack directions, so it sits behind the cards either way. */}
+        {hidden > 0 && (
+          <div className="toast__overflow">
+            {hidden} more notification{hidden === 1 ? '' : 's'}
+          </div>
+        )}
+
+        {visible.map(toast => {
           const Icon = toast.icon;
           return (
             <div
@@ -359,7 +399,11 @@ export default function Toasts() {
                   {toast.meta && <span className="toast__meta">{toast.meta}</span>}
                 </div>
 
-                <div className="toast__text">{toast.body}</div>
+                {toast.body && <div className="toast__text">{toast.body}</div>}
+
+                {toast.thumbnail && (
+                  <img className="toast__thumb" src={toast.thumbnail} alt="" />
+                )}
 
                 {toast.action && (
                   <div className="toast__actions">

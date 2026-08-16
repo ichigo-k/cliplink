@@ -1813,6 +1813,38 @@ main {
   overflow: hidden;
 }
 
+/* Fixed height on purpose. The window is measured in a layout effect the
+   moment the card renders, which is before a data: URL has decoded, so an
+   auto-height image would be measured at zero and leave the window too short
+   for its own contents. */
+.toast__thumb {
+  display: block;
+  width: 100%;
+  height: 110px;
+  margin-top: 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: var(--surface-input);
+}
+
+/* Says what the MAX_VISIBLE cap is holding back, rather than dropping it
+   silently. Sits behind the cards, furthest from the anchored corner. */
+.toast__overflow {
+  pointer-events: auto;
+  align-self: center;
+  padding: 4px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border-top);
+  background: #1F1F1F;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.42);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  animation: toast-in 200ms var(--ease) both;
+}
+
 /* Buttons sit under the message rather than beside it. Sharing the row meant
    the text was squeezed into whatever the longest label left behind. */
 .toast__actions {
